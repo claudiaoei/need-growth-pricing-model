@@ -589,7 +589,7 @@ export default function CancerPricingModel() {
           </div>
 
           {/* Section Navigation */}
-          <div className="mt-14 grid grid-cols-1 sm:grid-cols-5 gap-6">
+          <div className="mt-14 flex flex-col gap-3">
             {[
               { idx: 1, num: "01", title: "Cost Scenario / Assumptions", desc: "Inputs" },
               { idx: 2, num: "02", title: "Insurer Provided Data (cancer incidence, mortality, lapse rates)", desc: "Inputs" },
@@ -598,8 +598,8 @@ export default function CancerPricingModel() {
               { idx: 5, num: "05", title: "How It Works", desc: "Calculation engine walkthrough" },
             ].map(s => (
               <button key={s.idx} onClick={() => scrollTo(s.idx)}
-                className="text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/40 rounded-lg px-5 py-4 transition-all group">
-                <div className="text-[10px] font-medium uppercase tracking-widest text-slate-500 mb-1">{s.desc}</div>
+                className="flex-1 min-w-0 text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/40 rounded-lg px-5 py-3 transition-all group">
+                <div className="text-[10px] font-medium uppercase tracking-widest text-slate-500 mb-0.5">{s.desc}</div>
                 <div className="text-sm font-medium text-white group-hover:text-blue-300 transition-colors">
                   <span className="text-blue-400 mr-1.5">{s.num}</span>{s.title}
                 </div>
