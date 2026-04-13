@@ -27,61 +27,61 @@ const INFRA_RX_PER_CASE = 22.15703918322296;           // $/case (from T101)
 // ═══════════════════════════════════════════════════════════════
 const SCENARIOS = {
   "Base – July 2025": {
-    desc: "Original baseline from July 2025 pricing engagement.",
+    desc: "Original baseline from July 2025 pricing engagement. Hardcoded starting costs, 8% Halo efficiency yrs 3–7, 50% Recovery utilization, no infrastructure step-up.",
     hx: 0.41, tx: 217, halo: 658, recoveryPct: 0.5,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0, infraContractYears: 5,
+    infraStepUp: 0,
     hxStepUp: 0, hxStepYears: "",
     txStepDown: 0, txStepYears: "",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
   "Base – April 2026": {
-    desc: "Updated baseline linked to actual COGS as of April 2026. Lower Recovery utilization (10%) based on observed data.",
+    desc: "Updated baseline linked to actual COGS as of April 2026.",
     hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0, infraContractYears: 5,
+    infraStepUp: 0,
     hxStepUp: 0, hxStepYears: "",
     txStepDown: 0, txStepYears: "",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
-  "AI Acceleration": {
-    desc: "AI advances reduce Treatment costs 10%/yr in years 2–7 and double Halo efficiency to 20%, starting in year 2.",
+  "Treatment Mode Costs Decrease": {
+    desc: "AI acceleration doubles Halo efficiency to 20% starting yr 2, Treatment costs step down 10%/yr in yrs 2–7.",
     hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.20, haloYears: "2,3,4,5,6,7",
-    infraStepUp: 0, infraContractYears: 5,
+    infraStepUp: 0,
     hxStepUp: 0, hxStepYears: "",
     txStepDown: 0.10, txStepYears: "2,3,4,5,6,7",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
-  "Healthy Mode Investment": {
-    desc: "Increased investment in cancer prevention — Healthy Mode costs grow 15% above inflation in years 2–5, then stabilizes.",
+  "Healthy Mode Costs Increase": {
+    desc: "Increased investment in cancer prevention — Healthy Mode costs grow 15% above inflation in yrs 2–5, then inflation-only from yr 6.",
     hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0, infraContractYears: 5,
+    infraStepUp: 0,
     hxStepUp: 0.15, hxStepYears: "2,3,4,5",
     txStepDown: 0, txStepYears: "",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
-  "Infra Costs Up": {
-    desc: "Rising compute and cloud costs — 10% infrastructure step-up in years 2–10 on top of standard inflation.",
+  "Compute / Infra Costs Go Up": {
+    desc: "Rising compute and cloud costs — 10% infrastructure step-up in yrs 2–10 on top of inflation, inflation-only from yr 11.",
     hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0.10, infraContractYears: 5,
+    infraStepUp: 0.10,
     hxStepUp: 0, hxStepYears: "",
     txStepDown: 0, txStepYears: "",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
-  "Conservative Headwinds": {
-    desc: "Hx +10% yrs 2–5, Tx step-down 8% yrs 3–7, 10% Halo efficiency. Infrastructure at inflation only.",
+  "Most Conservative Headwinds": {
+    desc: "Combined stress: Hx +10% yrs 2–5, Tx step-down 8% yrs 3–7, 10% Halo efficiency, 10% infra step-up yrs 2–10 (inflation-only from yr 11).",
     hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.10, haloYears: "3,4,5,6,7",
-    infraStepUp: 0, infraContractYears: 5,
+    infraStepUp: 0.10,
     hxStepUp: 0.10, hxStepYears: "2,3,4,5",
     txStepDown: 0.08, txStepYears: "3,4,5,6,7",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
@@ -91,7 +91,7 @@ const SCENARIOS = {
     hx: 0, tx: 0, halo: 0, recoveryPct: 0,
     inflation: 0, discount: 0,
     haloEff: 0, haloYears: "",
-    infraStepUp: 0, infraContractYears: 5,
+    infraStepUp: 0,
     hxStepUp: 0, hxStepYears: "",
     txStepDown: 0, txStepYears: "",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
@@ -107,15 +107,15 @@ function parseYears(s) {
 }
 
 // Build per-year infrastructure cost curves (Hx infra, Tx infra, Rx infra)
-// Matches Excel Control Center: compound at (infraStepUp + inflation) for years 1-N
-// (where N = infraContractYears, typically 5), then just inflation after.
+// Matches Excel Cost Scenarios: compound at (inflation + infraStepUp) for years 2-10,
+// then inflation-only from year 11 onward.
 function buildInfraCurves(params, nYears) {
-  const { inflation, infraStepUp, infraContractYears = 5 } = params;
+  const { inflation, infraStepUp } = params;
   const hxInfra = [INFRA_HX_PER_PH_MONTHLY * 12]; // annualize
   const txInfra = [INFRA_TX_PER_CASE];
   const rxInfra = [INFRA_RX_PER_CASE];
   for (let y = 2; y <= nYears; y++) {
-    const rate = y <= infraContractYears ? (infraStepUp + inflation) : inflation;
+    const rate = y <= 10 ? (inflation + infraStepUp) : inflation;
     hxInfra.push(hxInfra[y - 2] * (1 + rate));
     txInfra.push(txInfra[y - 2] * (1 + rate));
     rxInfra.push(rxInfra[y - 2] * (1 + rate));
@@ -344,7 +344,7 @@ export default function CancerPricingModel() {
         const activeYrs = Array.from(hxStepYrs).filter(yr => yr <= y).sort((a,b) => a - b);
         if (activeYrs.length > 0) healthyParts.push(`Hx step-up: +${(params.hxStepUp * 100).toFixed(0)}% in yr${activeYrs.length > 1 ? "s" : ""} ${activeYrs.join(", ")}`);
       }
-      healthyParts.push(`Infra: $${c.hxInfra[i].toFixed(2)} (base $${(INFRA_HX_PER_PH_MONTHLY * 12).toFixed(2)}${params.infraStepUp > 0 ? ` + ${(params.infraStepUp * 100).toFixed(0)}% step-up` : ""} + inflation)`);
+      healthyParts.push(`Infra: $${c.hxInfra[i].toFixed(2)} (base $${(INFRA_HX_PER_PH_MONTHLY * 12).toFixed(2)}${params.infraStepUp > 0 ? ` + ${(params.infraStepUp * 100).toFixed(0)}% step-up yrs 2–10` : ""} + inflation)`);
       healthyParts.push(`Total: $${c.totalHxCurve[i].toFixed(2)}`);
 
       const txParts = [];
@@ -657,8 +657,7 @@ export default function CancerPricingModel() {
                 <TxtInput label="Hx Step-up Years" value={params.hxStepYears} onChange={v => updateParam("hxStepYears", v)} />
                 <NumInput label="Tx Step-down %" value={params.txStepDown * 100} onChange={v => updateParam("txStepDown", v / 100)} step={1} unit="%" />
                 <TxtInput label="Tx Step-down Years" value={params.txStepYears} onChange={v => updateParam("txStepYears", v)} />
-                <NumInput label="Infra Step-up %" value={params.infraStepUp * 100} onChange={v => updateParam("infraStepUp", v / 100)} step={1} unit="%" />
-                <NumInput label="Infra Contract Yrs" value={params.infraContractYears} onChange={v => updateParam("infraContractYears", v)} step={1} />
+                <NumInput label="Infra Step-up % (Yrs 2–10)" value={params.infraStepUp * 100} onChange={v => updateParam("infraStepUp", v / 100)} step={1} unit="%" />
               </div>
             </div>
 
