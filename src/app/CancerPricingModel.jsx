@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, AreaChart, Area, BarChart, Bar } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, AreaChart, Area, BarChart, Bar, ComposedChart } from "recharts";
 
 // ═══════════════════════════════════════════════════════════════
 // DATA TABLES (from HLI 2026.04.07 pricing data)
@@ -26,19 +26,9 @@ const INFRA_RX_PER_CASE = 22.15703918322296;           // $/case (from T101)
 // SCENARIO PRESETS
 // ═══════════════════════════════════════════════════════════════
 const SCENARIOS = {
-  "Base – July 2025": {
-    desc: "Original baseline from July 2025 pricing engagement. Hardcoded starting costs, 8% Halo efficiency yrs 3–7, 50% Recovery utilization, no infrastructure step-up.",
-    hx: 0.41, tx: 217, halo: 658, recoveryPct: 0.5,
-    inflation: 0.05, discount: 0.05,
-    haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0,
-    hxStepUp: 0, hxStepYears: "",
-    txStepDown: 0, txStepYears: "",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
   "Base – April 2026": {
     desc: "Updated baseline linked to actual COGS as of April 2026.",
-    hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
+    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.08, haloYears: "3,4,5,6,7",
     infraStepUp: 0,
@@ -48,7 +38,7 @@ const SCENARIOS = {
   },
   "Treatment Mode Costs Decrease": {
     desc: "AI acceleration doubles Halo efficiency to 20% starting yr 2, Treatment costs step down 10%/yr in yrs 2–7.",
-    hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
+    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.20, haloYears: "2,3,4,5,6,7",
     infraStepUp: 0,
@@ -58,7 +48,7 @@ const SCENARIOS = {
   },
   "Healthy Mode Costs Increase": {
     desc: "Increased investment in cancer prevention — Healthy Mode costs grow 15% above inflation in yrs 2–5, then inflation-only from yr 6.",
-    hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
+    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.08, haloYears: "3,4,5,6,7",
     infraStepUp: 0,
@@ -68,7 +58,7 @@ const SCENARIOS = {
   },
   "Compute / Infra Costs Go Up": {
     desc: "Rising compute and cloud costs — 10% infrastructure step-up in yrs 2–10 on top of inflation, inflation-only from yr 11.",
-    hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
+    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.08, haloYears: "3,4,5,6,7",
     infraStepUp: 0.10,
@@ -78,12 +68,22 @@ const SCENARIOS = {
   },
   "Most Conservative Headwinds": {
     desc: "Combined stress: Hx +10% yrs 2–5, Tx step-down 8% yrs 3–7, 10% Halo efficiency, 10% infra step-up yrs 2–10 (inflation-only from yr 11).",
-    hx: 0.467, tx: 393.33, halo: 562.59, recoveryPct: 0.1,
+    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.10, haloYears: "3,4,5,6,7",
     infraStepUp: 0.10,
     hxStepUp: 0.10, hxStepYears: "2,3,4,5",
     txStepDown: 0.08, txStepYears: "3,4,5,6,7",
+    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
+  },
+  "Base – July 2025": {
+    desc: "Original baseline from July 2025 pricing engagement. Hardcoded starting costs, 8% Halo efficiency yrs 3–7, 50% Recovery utilization, no infrastructure step-up.",
+    hx: 0.41, tx: 217, halo: 658, recoveryPct: 0.5,
+    inflation: 0.05, discount: 0.05,
+    haloEff: 0.08, haloYears: "3,4,5,6,7",
+    infraStepUp: 0,
+    hxStepUp: 0, hxStepYears: "",
+    txStepDown: 0, txStepYears: "",
     nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
   "Custom": {
@@ -159,7 +159,7 @@ function buildCostCurves(params, nYears) {
 
 function runCohort(age, gender, params, duration) {
   const nYears = duration;
-  const lapse = duration === 20 ? LAPSE_20YR : LAPSE_30YR;
+  const lapse = duration <= 20 ? LAPSE_20YR : LAPSE_30YR;
   const mort = gender === "M" ? MORT_M : MORT_F;
   const inc = gender === "M" ? INC_M : INC_F;
   const curves = buildCostCurves(params, nYears);
@@ -232,16 +232,69 @@ const fmtK = (v) => Math.abs(v) >= 1e6 ? "$" + (v/1e6).toFixed(1) + "M" : Math.a
 const pct = (v, d = 1) => (v * 100).toFixed(d) + "%";
 
 function NumInput({ label, value, onChange, step, unit }) {
+  const display = Math.round(value * 100) / 100;
+  const [local, setLocal] = useState(String(display));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocal(String(display));
+  }, [display, focused]);
+
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs text-slate-400 uppercase tracking-wider font-medium">{label}</span>
       <div className="flex items-center gap-1.5">
-        <input type="number" value={Math.round(value * 100) / 100} onChange={e => onChange(parseFloat(e.target.value) || 0)}
+        <input type="number" value={focused ? local : display}
+          onChange={e => {
+            setLocal(e.target.value);
+            const v = parseFloat(e.target.value);
+            if (!isNaN(v)) onChange(v);
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            const v = parseFloat(local);
+            if (!isNaN(v)) onChange(v);
+            else setLocal(String(display));
+          }}
           step={step || 0.01}
           className="w-24 px-2.5 py-1.5 text-sm bg-slate-800 border border-slate-600 rounded-md text-white focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400/30 transition-colors" />
         {unit && <span className="text-xs text-slate-500">{unit}</span>}
       </div>
     </label>
+  );
+}
+
+function HeroCMInput({ targetCM, setTargetCM }) {
+  const display = Math.round(targetCM * 100);
+  const [local, setLocal] = useState(String(display));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocal(String(display));
+  }, [display, focused]);
+
+  return (
+    <div>
+      <div className="text-xs text-slate-500 uppercase tracking-widest mb-2">Target CM</div>
+      <div className="flex items-center gap-1">
+        <input type="number" value={focused ? local : display}
+          onChange={e => {
+            setLocal(e.target.value);
+            const v = parseFloat(e.target.value);
+            if (!isNaN(v)) setTargetCM(Math.max(0, Math.min(100, v)) / 100);
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            const v = parseFloat(local);
+            if (!isNaN(v)) setTargetCM(Math.max(0, Math.min(100, v)) / 100);
+            else setLocal(String(display));
+          }}
+          className="h-9 w-16 bg-slate-800 border border-slate-700 rounded-md px-2 text-sm font-semibold text-slate-200 text-right focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+        <span className="text-sm font-semibold text-slate-400">%</span>
+      </div>
+    </div>
   );
 }
 
@@ -258,7 +311,7 @@ function TxtInput({ label, value, onChange }) {
 // Section wrapper
 function Section({ id, children, dark }) {
   return (
-    <section id={id} className={`min-h-screen px-6 py-16 md:px-12 lg:px-20 ${dark ? "bg-slate-900 text-white" : "bg-white text-slate-900"}`}>
+    <section id={id} className={`px-6 py-16 md:px-12 lg:px-20 ${dark ? "bg-slate-900 text-white" : "bg-white text-slate-900"}`}>
       <div className="max-w-7xl mx-auto">{children}</div>
     </section>
   );
@@ -299,12 +352,13 @@ const SECTION_LABELS = ["The Model", "Assumptions", "The Data", "Pricing", "Marg
 export default function CancerPricingModel() {
   const [scenario, setScenario] = useState("Base – April 2026");
   const [modified, setModified] = useState(false);
-  const [duration, setDuration] = useState(30);
+  const [duration, setDuration] = useState(10);
   const [targetCM, setTargetCM] = useState(0.70);
   const [cohortSize, setCohortSize] = useState(100000);
   const [activeSection, setActiveSection] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [costCurveView, setCostCurveView] = useState("chart");
+  const [marginProfileView, setMarginProfileView] = useState("chart");
   const [costPopup, setCostPopup] = useState(null); // { year, field, lines, x, y }
   const [params, setParams] = useState({ ...SCENARIOS["Base – April 2026"] });
   const sectionRefs = useRef([]);
@@ -419,9 +473,9 @@ export default function CancerPricingModel() {
   }, [params, duration, targetCM, cohortSize]);
 
   // Data for section 2 charts
-  const incidenceData = useMemo(() => Array.from({ length: 66 }, (_, i) => ({ age: 15 + i, male: INC_M[15 + i] * 1000, female: INC_F[15 + i] * 1000 })), []);
+  const incidenceData = useMemo(() => Array.from({ length: 66 }, (_, i) => ({ age: 15 + i, male: INC_M[15 + i] * 100, female: INC_F[15 + i] * 100 })), []);
   const lapseData = useMemo(() => LAPSE_30YR.map((v, i) => ({ year: i + 1, "30yr": v * 100, "20yr": (LAPSE_20YR[i] || 0) * 100 })), []);
-  const mortalityData = useMemo(() => Array.from({ length: 66 }, (_, i) => ({ age: 15 + i, male: MORT_M[15 + i] * 1000, female: MORT_F[15 + i] * 1000 })), []);
+  const mortalityData = useMemo(() => Array.from({ length: 66 }, (_, i) => ({ age: 15 + i, male: MORT_M[15 + i] * 100, female: MORT_F[15 + i] * 100 })), []);
 
   // ── How It Works: blended HLI book walkthrough ──
   const traceData = useMemo(() => {
@@ -463,7 +517,7 @@ export default function CancerPricingModel() {
     for (let y = 1; y <= nYears; y++) {
       let wRetention = 0, wIncRate = 0, wYearCost = 0, wNpvCost = 0, wNpvPH = 0;
       const df = 1 / Math.pow(1 + discount, y);
-      const lapseRate = (duration === 20 ? LAPSE_20YR : LAPSE_30YR)[y - 1] || 0.008;
+      const lapseRate = (duration <= 20 ? LAPSE_20YR : LAPSE_30YR)[y - 1] || 0.008;
       for (const { w, years } of perAgeResults) {
         const nw = w / totalW;
         const yr = years[y - 1];
@@ -560,9 +614,9 @@ export default function CancerPricingModel() {
           {/* Hero Stats */}
           <div className="flex gap-10 items-start">
             <div>
-              <div className="text-xs text-slate-500 uppercase tracking-widest mb-2">Policy Term</div>
+              <div className="text-xs text-slate-500 uppercase tracking-widest mb-2">Need Service Period</div>
               <div className="flex gap-1">
-                {[20, 30].map(d => (
+                {[3, 5, 10, 20, 30].map(d => (
                   <button key={d} onClick={() => setDuration(d)}
                     className={`h-9 px-3 text-sm font-semibold rounded-md transition-all ${duration === d ? "bg-blue-500 text-white" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
                     {d}yr
@@ -570,14 +624,7 @@ export default function CancerPricingModel() {
                 ))}
               </div>
             </div>
-            <div>
-              <div className="text-xs text-slate-500 uppercase tracking-widest mb-2">Target CM</div>
-              <div className="flex items-center gap-1">
-                <input type="number" value={Math.round(targetCM * 100)} onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) setTargetCM(Math.max(0, Math.min(100, v)) / 100); }}
-                  className="h-9 w-14 bg-slate-800 border border-slate-700 rounded-md px-2 text-sm font-semibold text-slate-200 text-right focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                <span className="text-sm font-semibold text-slate-400">%</span>
-              </div>
-            </div>
+            <HeroCMInput targetCM={targetCM} setTargetCM={setTargetCM} />
             <div>
               <div className="text-xs text-slate-500 uppercase tracking-widest mb-2">Blended PMPM</div>
               <div className="h-9 flex items-center text-sm font-semibold text-blue-400">{fmt(blended.blendedPMPM)}</div>
@@ -787,7 +834,7 @@ export default function CancerPricingModel() {
       <Section id="data" dark>
         <div ref={el => sectionRefs.current[2] = el} />
         <SectionTitle label="02 — The Data" title="What drives the model"
-          subtitle="Three datasets from Hanwha Life Insurance underpin every calculation: how often cancer occurs, how fast policyholders leave, and background mortality. All rates are per 1,000 lives." />
+          subtitle="Three datasets from Hanwha Life Insurance underpin every calculation: how often cancer occurs, how fast policyholders leave, and background mortality. All rates are shown as percentages." />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Incidence */}
@@ -802,8 +849,9 @@ export default function CancerPricingModel() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="age" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={v => v.toFixed(0)} />
-                <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} formatter={(v) => [v.toFixed(2) + " per 1K"]} />
+                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={v => v.toFixed(1) + "%"} />
+                <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} formatter={(v) => [v.toFixed(2) + "%"]} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
                 <Area type="monotone" dataKey="male" name="Male" stroke={chartColors.male} fill="url(#gM)" strokeWidth={1.5} />
                 <Area type="monotone" dataKey="female" name="Female" stroke={chartColors.female} fill="url(#gF)" strokeWidth={1.5} />
               </AreaChart>
@@ -824,6 +872,7 @@ export default function CancerPricingModel() {
                 <XAxis dataKey="year" tick={{ fontSize: 10, fill: "#94a3b8" }} />
                 <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={v => v + "%"} />
                 <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} formatter={(v) => [v.toFixed(2) + "%"]} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
                 <Area type="monotone" dataKey="30yr" name="30-year" stroke="#fbbf24" fill="url(#gL30)" strokeWidth={1.5} />
                 <Area type="monotone" dataKey="20yr" name="20-year" stroke="#a78bfa" fill="url(#gL20)" strokeWidth={1.5} strokeDasharray="4 4" />
               </AreaChart>
@@ -842,8 +891,9 @@ export default function CancerPricingModel() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="age" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={v => v.toFixed(0)} />
-                <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} formatter={(v) => [v.toFixed(3) + " per 1K"]} />
+                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={v => v.toFixed(1) + "%"} />
+                <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} formatter={(v) => [v.toFixed(3) + "%"]} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
                 <Area type="monotone" dataKey="male" name="Male" stroke={chartColors.male} fill="url(#gMortM)" strokeWidth={1.5} />
                 <Area type="monotone" dataKey="female" name="Female" stroke={chartColors.female} fill="url(#gMortF)" strokeWidth={1.5} />
               </AreaChart>
@@ -866,10 +916,11 @@ export default function CancerPricingModel() {
       </Section>
 
       {/* ─── SECTION 4: PRICING TABLE ─── */}
-      <Section id="pricing" dark>
+      <section id="pricing" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
+        <div className="max-w-7xl mx-auto">
         <div ref={el => sectionRefs.current[3] = el} />
         <SectionTitle label="03 — The Price" title="PMPM by age and gender"
-          subtitle="The monthly premium per member that achieves the target contribution margin over the full policy term, weighted by HLI's policyholder distribution." />
+          subtitle="The monthly premium per member that achieves the target contribution margin over the full Need service period, weighted by HLI's policyholder distribution." />
 
         {/* Blended PMPM hero stat */}
         <div className="flex items-end gap-8 mb-8">
@@ -892,8 +943,8 @@ export default function CancerPricingModel() {
                   <th className="text-left px-4 py-2.5 font-medium text-slate-400 w-16">Age</th>
                   <th className="text-right px-4 py-2.5 font-medium text-slate-400">Male PMPM</th>
                   <th className="text-right px-4 py-2.5 font-medium text-slate-400">Female PMPM</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-slate-400">PH Weight</th>
                   <th className="text-right px-4 py-2.5 font-medium text-blue-400">Blended</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-slate-500 text-xs">PH Weight</th>
                 </tr>
               </thead>
               <tbody>
@@ -905,8 +956,8 @@ export default function CancerPricingModel() {
                       <td className="px-4 py-1.5 font-medium text-slate-300">{row.age}</td>
                       <td className="px-4 py-1.5 text-right font-mono text-slate-300">{fmt(row.male)}</td>
                       <td className="px-4 py-1.5 text-right font-mono text-slate-300">{fmt(row.female)}</td>
+                      <td className="px-4 py-1.5 text-right font-mono text-slate-300">{pct(tot, 2)}</td>
                       <td className="px-4 py-1.5 text-right font-mono text-blue-400 font-medium">{fmt(bl)}</td>
-                      <td className="px-4 py-1.5 text-right font-mono text-slate-600 text-xs">{pct(tot, 2)}</td>
                     </tr>
                   );
                 })}
@@ -923,10 +974,11 @@ export default function CancerPricingModel() {
           <div><span className="text-slate-600">Target CM:</span> <span className="text-slate-300 font-medium">{pct(targetCM, 0)}</span></div>
           <div><span className="text-slate-600">Duration:</span> <span className="text-slate-300 font-medium">{duration}yr</span></div>
         </div>
-      </Section>
+        </div>
+      </section>
 
       {/* ─── SECTION 5: COHORT MARGIN ─── */}
-      <section ref={el => sectionRefs.current[4] = el} id="margin" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
+      <section ref={el => sectionRefs.current[4] = el} id="margin" className="bg-slate-900 text-white px-6 py-16 md:px-12 lg:px-20">
         <div className="max-w-7xl mx-auto">
           <SectionTitle label="04 — The Margin" title="Annual contribution margin over the life of a cohort"
             subtitle="Weighted across all ages (15–80) and genders using HLI's actual policyholder distribution. Each age is priced at its own solved PMPM, then aggregated. As the cohort ages, rising cancer incidence erodes the margin year over year." />
@@ -974,7 +1026,7 @@ export default function CancerPricingModel() {
                 <thead>
                   <tr className="bg-slate-800 border-b border-slate-700">
                     <th className="px-3 py-2 text-left text-slate-400">Year</th>
-                    <th className="px-3 py-2 text-right text-slate-400">Survival %</th>
+                    <th className="px-3 py-2 text-right text-slate-400">Retention %</th>
                     <th className="px-3 py-2 text-right text-slate-400">Revenue</th>
                     <th className="px-3 py-2 text-right text-slate-400">Cost</th>
                     <th className="px-3 py-2 text-right text-slate-400">Margin</th>
@@ -1002,7 +1054,7 @@ export default function CancerPricingModel() {
       </section>
 
       {/* ─── SECTION 6: HOW IT WORKS ─── */}
-      <section ref={el => sectionRefs.current[5] = el} id="howitworks" className="bg-slate-900 text-white px-6 py-16 md:px-12 lg:px-20">
+      <section ref={el => sectionRefs.current[5] = el} id="howitworks" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
         <div className="max-w-7xl mx-auto">
           <SectionTitle label="05 — How It Works" title="Calculation engine walkthrough"
             subtitle="A step-by-step walkthrough from input assumptions to how the model calculates to the final outputs." />
@@ -1021,7 +1073,6 @@ export default function CancerPricingModel() {
               <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold">1</div>
               <div>
                 <h3 className="text-base font-semibold text-white">Build Cost Curves</h3>
-                <p className="text-xs text-slate-500">buildCostCurves &amp; buildInfraCurves</p>
               </div>
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 mb-3">
@@ -1080,7 +1131,6 @@ export default function CancerPricingModel() {
               <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold">2</div>
               <div>
                 <h3 className="text-base font-semibold text-white">Run Blended Cohort Projection</h3>
-                <p className="text-xs text-slate-500">runCohort per age/gender, then PH-mix weighted blend — {duration}yr policy</p>
               </div>
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 mb-3">
@@ -1120,27 +1170,66 @@ export default function CancerPricingModel() {
               <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold">3</div>
               <div>
                 <h3 className="text-base font-semibold text-white">Solve for Blended PMPM</h3>
-                <p className="text-xs text-slate-500">solvePMPM per age/gender, then PH-mix weighted average — target {pct(targetCM, 0)} CM</p>
               </div>
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 mb-3">
-              <p className="text-sm text-slate-400 mb-4">
+              <p className="text-sm text-slate-400 mb-6">
                 Each age/gender gets its own solved PMPM at {pct(params.discount, 0)} discount rate. The blended PMPM
-                is the PH-mix weighted average across all cohorts. Below are the blended NPV totals.
+                is the PH-mix weighted average across all cohorts. The equation below traces how blended NPV totals produce the final price.
               </p>
-              <div className="bg-slate-900/60 rounded-lg p-3 mb-4 font-mono text-xs text-slate-300">
-                <div>discountFactor[y] = 1 / (1 + {params.discount})^y</div>
-                <div className="mt-1">NPV of Costs = &Sigma; (yearCost &times; discountFactor) = <span className="text-blue-300">${traceData.npvCost.toFixed(4)}</span></div>
-                <div>NPV of PH-Years = &Sigma; (retention &times; discountFactor) = <span className="text-blue-300">{traceData.npvPHYears.toFixed(4)}</span></div>
-                {traceData.npvCaseFee > 0 && <div>NPV of Case Fee = <span className="text-emerald-300">${traceData.npvCaseFee.toFixed(4)}</span></div>}
-                <div className="mt-2 border-t border-slate-700 pt-2">
-                  Needed Revenue = NPV Costs / (1 - CM) = {traceData.npvCost.toFixed(4)} / {(1 - targetCM).toFixed(2)} = <span className="text-blue-300">${traceData.neededRevenue.toFixed(4)}</span>
+
+              {/* Equation Row 1: NPV Costs ÷ (1 - CM) = Needed Revenue */}
+              <div className="flex items-stretch gap-3 mb-4 flex-wrap">
+                <div className="bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-3 min-w-[140px] flex flex-col justify-between">
+                  <div className="text-xs text-slate-300 uppercase tracking-widest font-medium mb-1">NPV of Costs</div>
+                  <div className="text-lg font-bold text-white font-mono">${traceData.npvCost.toFixed(2)}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">&Sigma; yearCost &times; df</div>
                 </div>
-                <div className="mt-2 text-sm">
-                  <span className="text-white font-semibold">PMPM</span> = {traceData.npvCaseFee > 0
-                    ? `(${traceData.neededRevenue.toFixed(2)} - ${traceData.npvCaseFee.toFixed(2)})`
-                    : traceData.neededRevenue.toFixed(4)} / {traceData.npvPHYears.toFixed(4)} / 12 = <span className="text-blue-400 font-bold">${traceData.pmpm.toFixed(4)}</span>
+                <span className="text-slate-400 text-lg font-light flex items-center">&divide;</span>
+                <div className="bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-3 min-w-[100px] flex flex-col justify-between">
+                  <div className="text-xs text-slate-300 uppercase tracking-widest font-medium mb-1">1 &minus; CM</div>
+                  <div className="text-lg font-bold text-white font-mono">{pct(1 - targetCM, 0)}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">1 &minus; {pct(targetCM, 0)}</div>
                 </div>
+                <span className="text-slate-400 text-lg font-light flex items-center">=</span>
+                <div className="bg-slate-900/80 border border-blue-500/30 rounded-lg px-4 py-3 min-w-[140px] flex flex-col justify-between">
+                  <div className="text-xs text-blue-300 uppercase tracking-widest font-medium mb-1">Needed Revenue</div>
+                  <div className="text-lg font-bold text-blue-300 font-mono">${traceData.neededRevenue.toFixed(2)}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">&nbsp;</div>
+                </div>
+              </div>
+
+              {/* Equation Row 2: (Needed Revenue - Case Fee) ÷ NPV PH-Years ÷ 12 = PMPM */}
+              <div className="flex items-stretch gap-3 mb-4 flex-wrap">
+                <div className="bg-slate-900/80 border border-blue-500/30 rounded-lg px-4 py-3 min-w-[140px] flex flex-col justify-between">
+                  <div className="text-xs text-blue-300 uppercase tracking-widest font-medium mb-1">{traceData.npvCaseFee > 0 ? "Rev \u2212 Case Fee" : "Needed Revenue"}</div>
+                  <div className="text-lg font-bold text-blue-300 font-mono">
+                    ${(traceData.neededRevenue - traceData.npvCaseFee).toFixed(2)}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{traceData.npvCaseFee > 0 ? <>&minus; ${traceData.npvCaseFee.toFixed(2)} case fee</> : <>&nbsp;</>}</div>
+                </div>
+                <span className="text-slate-400 text-lg font-light flex items-center">&divide;</span>
+                <div className="bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-3 min-w-[140px] flex flex-col justify-between">
+                  <div className="text-xs text-slate-300 uppercase tracking-widest font-medium mb-1">NPV of PH-Years</div>
+                  <div className="text-lg font-bold text-white font-mono">{traceData.npvPHYears.toFixed(2)}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">&Sigma; retention &times; df</div>
+                </div>
+                <span className="text-slate-400 text-lg font-light flex items-center">&divide;</span>
+                <div className="bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-3 flex flex-col justify-between">
+                  <div className="text-xs text-slate-300 uppercase tracking-widest font-medium mb-1">Months</div>
+                  <div className="text-lg font-bold text-white font-mono">12</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">&nbsp;</div>
+                </div>
+                <span className="text-slate-400 text-lg font-light flex items-center">=</span>
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg px-5 py-3 shadow-lg shadow-blue-600/20 flex flex-col justify-between">
+                  <div className="text-xs text-blue-100 uppercase tracking-widest font-medium mb-1">Blended PMPM</div>
+                  <div className="text-2xl font-bold text-white font-mono">${traceData.pmpm.toFixed(2)}</div>
+                  <div className="text-[11px] mt-0.5">&nbsp;</div>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-slate-600 mb-4">
+                discountFactor[y] = 1 / (1 + {params.discount})<sup>y</sup> &nbsp;&middot;&nbsp; All values are PH-mix weighted averages across 132 age/gender cohorts.
               </div>
 
               {/* NPV accumulation table */}
@@ -1166,12 +1255,12 @@ export default function CancerPricingModel() {
                       {traceData.step2.filter((_, i) => i < 10 || (i + 1) % 5 === 0).map(r => (
                         <tr key={r.year} className="border-b border-slate-800/50">
                           <td className="px-2 py-1.5 text-slate-300 font-medium">{r.year}</td>
-                          <td className="px-2 py-1.5 text-right text-slate-500 font-mono">{r.df.toFixed(4)}</td>
-                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.yearCost.toFixed(4)}</td>
-                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.yearNPVCost.toFixed(4)}</td>
-                          <td className="px-2 py-1.5 text-right text-blue-300 font-mono">${r.cumNPVCost.toFixed(4)}</td>
-                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">{r.yearNPVPH.toFixed(4)}</td>
-                          <td className="px-2 py-1.5 text-right text-blue-300 font-mono">{r.cumNPVPH.toFixed(4)}</td>
+                          <td className="px-2 py-1.5 text-right text-slate-500 font-mono">{r.df.toFixed(2)}</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.yearCost.toFixed(2)}</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.yearNPVCost.toFixed(2)}</td>
+                          <td className="px-2 py-1.5 text-right text-blue-300 font-mono">${r.cumNPVCost.toFixed(2)}</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">{r.yearNPVPH.toFixed(2)}</td>
+                          <td className="px-2 py-1.5 text-right text-blue-300 font-mono">{r.cumNPVPH.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1187,48 +1276,84 @@ export default function CancerPricingModel() {
               <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold">4</div>
               <div>
                 <h3 className="text-base font-semibold text-white">Blended Margin Profile</h3>
-                <p className="text-xs text-slate-500">Per-age revenue vs. cost, then PH-mix weighted — CM% is weighted avg of per-age CMs</p>
               </div>
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
-              <p className="text-sm text-slate-400 mb-4">
-                Each age uses its own solved PMPM. Revenue and cost are PH-mix weighted. The margin % is the weighted average
-                of per-age spot CMs (matching the Excel's blending method). As the book ages, incidence rises and margin compresses.
-              </p>
-              <div className="bg-slate-900/60 rounded-lg p-3 mb-4 font-mono text-xs text-slate-300">
-                <div>revenue[y] = retention[y] &times; PMPM &times; 12</div>
-                <div>margin[y] = revenue[y] - cost[y]</div>
-                <div>cumNPVMargin = &Sigma; margin[y] &times; discountFactor[y]</div>
-              </div>
+              {/* KPI Cards */}
+              {(() => {
+                const s4 = traceData.step4;
+                const yr1 = s4[0];
+                const cross = s4.find((d, i) => i > 0 && s4[i - 1].marginPct >= 0 && d.marginPct < 0);
+                const finalCum = s4[s4.length - 1].cumNPVMargin;
+                const npvRev = s4.reduce((sum, d) => sum + d.revenue / Math.pow(1 + params.discount, d.year), 0);
+                const npvCost = s4.reduce((sum, d) => sum + d.cost / Math.pow(1 + params.discount, d.year), 0);
+                const npvCM = npvRev > 0 ? ((npvRev - npvCost) / npvRev) * 100 : 0;
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-slate-900/70 rounded-lg px-4 py-3 border border-slate-700/50">
+                      <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Year 1 Margin</div>
+                      <div className="text-xl font-bold text-emerald-400 font-mono">{yr1.marginPct.toFixed(1)}%</div>
+                    </div>
+                    <div className="bg-slate-900/70 rounded-lg px-4 py-3 border border-slate-700/50">
+                      <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Lifetime NPV CM</div>
+                      <div className={`text-xl font-bold font-mono ${npvCM < 0 ? "text-red-400" : "text-emerald-400"}`}>{npvCM.toFixed(1)}%</div>
+                    </div>
+                    <div className="bg-slate-900/70 rounded-lg px-4 py-3 border border-slate-700/50">
+                      <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">CM Crosses 0%</div>
+                      <div className={`text-xl font-bold font-mono ${cross ? "text-red-400" : "text-emerald-400"}`}>
+                        {cross ? `Year ${cross.year}` : "Never"}
+                      </div>
+                    </div>
+                    <div className="bg-slate-900/70 rounded-lg px-4 py-3 border border-slate-700/50">
+                      <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Final Year Margin</div>
+                      <div className={`text-xl font-bold font-mono ${s4[s4.length - 1].marginPct < 0 ? "text-red-400" : "text-emerald-400"}`}>{s4[s4.length - 1].marginPct.toFixed(1)}%</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs" style={{ tableLayout: "fixed" }}>
+                  <colgroup>
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "15.3%" }} />
+                    <col style={{ width: "15.3%" }} />
+                    <col style={{ width: "15.3%" }} />
+                    <col style={{ width: "15.3%" }} />
+                    <col style={{ width: "15.3%" }} />
+                    <col style={{ width: "15.3%" }} />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-slate-700">
                       <th className="px-2 py-2 text-left text-slate-500">Year</th>
-                      <th className="px-2 py-2 text-right text-slate-500">Survival</th>
+                      <th className="px-2 py-2 text-right text-slate-500">Retention</th>
                       <th className="px-2 py-2 text-right text-slate-500">Revenue</th>
+                      <th className="px-2 py-2 text-right text-slate-500">Incidence (%)</th>
                       <th className="px-2 py-2 text-right text-slate-500">Cost</th>
                       <th className="px-2 py-2 text-right text-slate-500">Margin</th>
                       <th className="px-2 py-2 text-right text-slate-500">Margin %</th>
-                      <th className="px-2 py-2 text-right text-blue-400">Cum NPV Margin</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {traceData.step4.filter((_, i) => i < 10 || (i + 1) % 5 === 0).map(r => (
-                      <tr key={r.year} className="border-b border-slate-800/50">
-                        <td className="px-2 py-1.5 text-slate-300 font-medium">{r.year}</td>
-                        <td className="px-2 py-1.5 text-right text-slate-400 font-mono">{(r.survival * 100).toFixed(2)}%</td>
-                        <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.revenue.toFixed(4)}</td>
-                        <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.cost.toFixed(4)}</td>
-                        <td className={`px-2 py-1.5 text-right font-mono ${r.margin < 0 ? "text-red-400" : "text-emerald-400"}`}>${r.margin.toFixed(4)}</td>
-                        <td className={`px-2 py-1.5 text-right font-mono font-medium ${r.marginPct < 0 ? "text-red-400" : "text-emerald-400"}`}>{r.marginPct.toFixed(1)}%</td>
-                        <td className={`px-2 py-1.5 text-right font-mono ${r.cumNPVMargin < 0 ? "text-red-400" : "text-emerald-400"}`}>${r.cumNPVMargin.toFixed(4)}</td>
-                      </tr>
-                    ))}
+                    {traceData.step4.filter((_, i) => i < 10 || (i + 1) % 5 === 0).map(r => {
+                      return (
+                        <tr key={r.year} className="border-b border-slate-800/50">
+                          <td className="px-2 py-1.5 text-slate-300 font-medium">{r.year}</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">{(r.survival * 100).toFixed(2)}%</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.revenue.toFixed(2)}</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">{(traceData.step2[r.year - 1].incRate * 100).toFixed(2)}%</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400 font-mono">${r.cost.toFixed(2)}</td>
+                          <td className={`px-2 py-1.5 text-right font-mono ${r.margin < 0 ? "text-red-400" : "text-emerald-400"}`}>${r.margin.toFixed(2)}</td>
+                          <td className={`px-2 py-1.5 text-right font-mono font-medium ${r.marginPct < 0 ? "text-red-400" : "text-emerald-400"}`}>
+                            {r.marginPct.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              <p className="text-[10px] text-slate-600 mt-2">All values are PH-mix weighted averages per policyholder. Margin % = weighted avg of per-age CMs, matching the Excel methodology.</p>
+              <p className="text-[10px] text-slate-600 mt-3">All values are PH-mix weighted averages per policyholder. Margin % = weighted avg of per-age CMs.</p>
             </div>
           </div>
 

@@ -11,7 +11,7 @@ The model produces results identical to the reference Excel spreadsheet (v63_CF)
 ## Key Concepts
 
 ### PMPM (Per Member Per Month)
-The monthly price charged per policyholder. The model solves for the PMPM that achieves a target contribution margin over the full policy term. Each age/gender cohort gets its own solved PMPM; the "blended PMPM" is the weighted average across HLI's actual policyholder distribution.
+The monthly price charged per policyholder. The model solves for the PMPM that achieves a target contribution margin over the full Need service period. Each age/gender cohort gets its own solved PMPM; the "blended PMPM" is the weighted average across HLI's actual policyholder distribution.
 
 ### Cost Structure — Three Modes
 - **Hx (Healthy Mode)**: Per-member cost of cancer prevention — charged for every policyholder, every year. Base cost is monthly (`$/mo/PH`), annualized internally (`×12`).
@@ -60,7 +60,7 @@ HLI's actual book: ages 15–80, approximately 60% female / 40% male, with 132 a
 
 ## Model Defaults
 - **Target CM**: 70%
-- **Policy Term**: 30 years
+- **Need Service Period**: 30 years
 - **Inflation**: 5%
 - **Discount Rate**: 5%
 - **Cohort Size**: 100,000
