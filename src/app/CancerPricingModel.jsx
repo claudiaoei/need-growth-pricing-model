@@ -616,7 +616,7 @@ export default function CancerPricingModel() {
             <div>
               <div className="text-xs text-slate-500 uppercase tracking-widest mb-2">Need Service Period</div>
               <div className="flex gap-1">
-                {[3, 5, 10, 20, 30].map(d => (
+                {[3, 5, 10, 15, 20, 30].map(d => (
                   <button key={d} onClick={() => setDuration(d)}
                     className={`h-9 px-3 text-sm font-semibold rounded-md transition-all ${duration === d ? "bg-blue-500 text-white" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
                     {d}yr
