@@ -25,34 +25,34 @@ export const INFRA_RX_PER_CASE = 22.15703918322296;
 // ═══════════════════════════════════════════════════════════════
 export const SCENARIOS = {
   "Base": {
-    desc: "Base case from v69 Cost Scenarios: Halo efficiency 40% in yrs 2–4, Hx step-up 25% and Tx step-down 25% in yrs 2–7, infra step-up 20% in yrs 2–10.",
+    desc: "Base case: Halo efficiency 40% in yrs 2–4, Hx step-up 25% and Tx step-down 25% in yrs 2–7, infra step-up 20% in yrs 2–10.",
     hx: 1.027119529539755, tx: 625.7882010497684, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.40, haloYears: "2,3,4",
     infraStepUp: 0.20,
     hxStepUp: 0.25, hxStepYears: "2,3,4,5,6,7",
     txStepDown: 0.25, txStepYears: "2,3,4,5,6,7",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
+    nxCost: 0, nxCostEnabled: false, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
   "Bull": {
-    desc: "Bull case from v69 Cost Scenarios: stronger Halo efficiency (50% in yrs 2–4), lighter Hx step-up (15%) and infra step-up (15%), Tx step-down 25% in yrs 2–7.",
+    desc: "Bull case: stronger Halo efficiency (50% in yrs 2–4), lighter Hx step-up (15%) and infra step-up (15%), Tx step-down 25% in yrs 2–7.",
     hx: 1.027119529539755, tx: 625.7882010497684, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.50, haloYears: "2,3,4",
     infraStepUp: 0.15,
     hxStepUp: 0.15, hxStepYears: "2,3,4,5,6,7",
     txStepDown: 0.25, txStepYears: "2,3,4,5,6,7",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
+    nxCost: 0, nxCostEnabled: false, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
   "Bear": {
-    desc: "Bear case from v69 Cost Scenarios: weaker Halo efficiency (25% in yrs 2–4), heavier Hx step-up (30%) and infra step-up (30%) in yrs 2–10, Tx step-down 25% in yrs 2–7.",
+    desc: "Bear case: weaker Halo efficiency (25% in yrs 2–4), heavier Hx step-up (30%) and infra step-up (30%) in yrs 2–10, Tx step-down 25% in yrs 2–7.",
     hx: 1.027119529539755, tx: 625.7882010497684, halo: 562.5881058045244, recoveryPct: 0.1,
     inflation: 0.05, discount: 0.05,
     haloEff: 0.25, haloYears: "2,3,4",
     infraStepUp: 0.30,
     hxStepUp: 0.30, hxStepYears: "2,3,4,5,6,7",
     txStepDown: 0.25, txStepYears: "2,3,4,5,6,7",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
+    nxCost: 0, nxCostEnabled: false, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
   "Custom": {
     desc: "Start from scratch — fill in your own assumptions.",
@@ -62,7 +62,7 @@ export const SCENARIOS = {
     infraStepUp: 0,
     hxStepUp: 0, hxStepYears: "",
     txStepDown: 0, txStepYears: "",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
+    nxCost: 0, nxCostEnabled: false, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
   },
 };
 
@@ -122,7 +122,8 @@ export function runCohort(age, gender, params, duration) {
   const mort = gender === "M" ? MORT_M : MORT_F;
   const inc = gender === "M" ? INC_M : INC_F;
   const curves = buildCostCurves(params, nYears);
-  const { nxCost = 0 } = params;
+  const { nxCost: rawNxCost = 0, nxCostEnabled = false } = params;
+  const nxCost = nxCostEnabled ? rawNxCost : 0;
   const years = [];
   let retention = 1;
   for (let y = 1; y <= nYears; y++) {

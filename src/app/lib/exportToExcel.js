@@ -28,6 +28,29 @@ const PCT_FMT = "0.00%";
 const INT_FMT = "0";
 
 // ───────── helpers ─────────
+// 1-based column index → Excel column letter (1 → "A", 27 → "AA")
+function colLetter(colIdx) {
+  let s = "";
+  let n = colIdx;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+// Build an absolute cross-sheet reference, e.g. "'Base case'!$C$5"
+function sheetRef(sheetName, col, row) {
+  return `'${sheetName}'!$${colLetter(col)}$${row}`;
+}
+
+// Build an absolute cross-sheet range ref, e.g. "'Base case'!$C$27:$C$92"
+function sheetRangeRef(sheetName, col, row1, row2) {
+  const L = colLetter(col);
+  return `'${sheetName}'!$${L}$${row1}:$${L}$${row2}`;
+}
+
 function sanitizeFilename(name) {
   return (name || "Pricing")
     .replace(/[\\/:*?"<>|]/g, "_")
@@ -92,12 +115,187 @@ function zebra(row) {
   });
 }
 
+// ───────── LAYOUT HELPER ─────────
+// Computes the shared geometry used by the PH Weights / Scenario / Summary sheets
+// so the cross-sheet formulas all line up on the same rows & columns.
+//
+// Scenario sheet layout (per CM block):
+//   row 1               → title ("<Scen> case (<CM>% CM)")
+//   rows 2..topBlockEnd → top block with 3 rows per duration (Blended / Male / Female),
+//                         durations sorted descending to match the HLI reference
+//   row bandRow         → "Growth Pricing Framework" band (dynamic, sits one row
+//                         below the top block so it never collides with content)
+//   rows bandRow+1..+2  → column headers (Duration-group / Age / Male / Female)
+//   rows gridFirstRow.. → per-age pricing grid (one row per age in ageRange)
+//
+// PH Weights sheet layout:
+//   row 1          → headers
+//   rows 2..       → one row per age in the intersection of [15, 80] and ageRange
+//   phTotalsRow    → SUM totals (=SUM(col2:colLast))
+//   phPctRow       → share-of-book (=colTotal / $D$totalsRow)
+function buildLayout(durations, cms, ageRange) {
+  const blockWidth = 1 + durations.length * 2; // Age + (M,F) per duration
+  const blockGap = 1;
+  const stride = blockWidth + blockGap;
+
+  // Top block: 3 rows per duration, starting at row 2. Sorted descending for display.
+  const sortedDurs = [...durations].sort((a, b) => b - a);
+  const topBlockLastRow = 1 + sortedDurs.length * 3;         // e.g. 2 durs → row 7
+  const bandRow = topBlockLastRow + 2;                        // leave a blank row, then band
+  const headerRowDur = bandRow + 1;                           // duration-group + Age
+  const headerRowGender = bandRow + 2;                        // Male / Female
+  const gridFirstRow = bandRow + 3;                           // first age row
+
+  // PH Weights geometry (ages are clipped to 15-80 intersection with user range)
+  const phMinAge = Math.max(15, ageRange.min);
+  const phMaxAge = Math.min(80, ageRange.max);
+  const phCount = Math.max(0, phMaxAge - phMinAge + 1);
+  const phFirstRow = 2;
+  const phLastRow = phFirstRow + phCount - 1;
+  const phTotalsRow = phLastRow + 1;
+  const phPctRow = phLastRow + 2;
+
+  // Row in scenario per-age grid that corresponds to each age in the PH Weights slice
+  const gridRowForAge = (age) => gridFirstRow + (age - ageRange.min);
+  const gridFirstAgeRow = gridRowForAge(phMinAge);
+  const gridLastAgeRow = gridRowForAge(phMaxAge);
+
+  // Column helpers for the scenario tab's per-CM blocks
+  const startColForCm = (cmIdx) => 1 + cmIdx * stride;
+  const valueColForCm = (cmIdx) => startColForCm(cmIdx) + 2; // top block value column
+  const maleGridCol = (cmIdx, durIdx) => startColForCm(cmIdx) + 1 + durIdx * 2;
+  const femaleGridCol = (cmIdx, durIdx) => maleGridCol(cmIdx, durIdx) + 1;
+
+  // Row helpers for the top block (sorted-descending)
+  const blendedRowForSorted = (sIdx) => 2 + sIdx * 3;
+  const maleRowForSorted = (sIdx) => blendedRowForSorted(sIdx) + 1;
+  const femaleRowForSorted = (sIdx) => blendedRowForSorted(sIdx) + 2;
+
+  return {
+    blockWidth, blockGap, stride, sortedDurs,
+    topBlockLastRow, bandRow, headerRowDur, headerRowGender, gridFirstRow,
+    phMinAge, phMaxAge, phCount, phFirstRow, phLastRow, phTotalsRow, phPctRow,
+    gridFirstAgeRow, gridLastAgeRow, gridRowForAge,
+    startColForCm, valueColForCm, maleGridCol, femaleGridCol,
+    blendedRowForSorted, maleRowForSorted, femaleRowForSorted,
+  };
+}
+
+// ───────── PH WEIGHTS SHEET ─────────
+// Provides transparent PH-mix inputs that drive every blended/weighted figure in
+// the workbook. The customer can change any weight and every SUMPRODUCT /
+// share-of-book formula will recompute automatically.
+function buildPHWeightsSheet(wb, { ageRange, layout }) {
+  const ws = wb.addWorksheet("PH Weights", {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
+
+  // Title row merged across the header area (visible above frozen row? actually
+  // we put title into a separate row by adjusting — keep it simple: row 1 = headers)
+  ["Age", "Male PH Mix", "Female PH Mix", "Total PH Mix"].forEach((h, i) => {
+    const c = ws.getRow(1).getCell(1 + i);
+    c.value = h;
+    styleHeaderCell(c, { fill: BRAND_BLUE });
+  });
+
+  const { phMinAge, phMaxAge, phFirstRow, phLastRow, phTotalsRow, phPctRow } = layout;
+
+  for (let age = phMinAge; age <= phMaxAge; age++) {
+    const rowIdx = phFirstRow + (age - phMinAge);
+    const r = ws.getRow(rowIdx);
+
+    const ageC = r.getCell(1);
+    ageC.value = age;
+    ageC.numFmt = INT_FMT;
+    ageC.font = { bold: true, size: 10, color: { argb: LABEL_GREY } };
+    ageC.alignment = { horizontal: "center" };
+    applyBorder(ageC);
+
+    const mC = r.getCell(2);
+    mC.value = PH_M[age] || 0;
+    mC.numFmt = "0.0000%";
+    mC.alignment = { horizontal: "right" };
+    mC.font = { size: 10 };
+    applyBorder(mC);
+
+    const fC = r.getCell(3);
+    fC.value = PH_F[age] || 0;
+    fC.numFmt = "0.0000%";
+    fC.alignment = { horizontal: "right" };
+    fC.font = { size: 10 };
+    applyBorder(fC);
+
+    const tC = r.getCell(4);
+    tC.value = { formula: `B${rowIdx}+C${rowIdx}`, result: (PH_M[age] || 0) + (PH_F[age] || 0) };
+    tC.numFmt = "0.0000%";
+    tC.alignment = { horizontal: "right" };
+    tC.font = { size: 10, italic: true, color: { argb: LABEL_GREY } };
+    applyBorder(tC);
+
+    if ((age - phMinAge) % 2 === 1) zebra(r);
+  }
+
+  // Totals row
+  const totalsRow = ws.getRow(phTotalsRow);
+  const lblT = totalsRow.getCell(1);
+  lblT.value = "Total";
+  lblT.font = { bold: true, size: 10 };
+  lblT.alignment = { horizontal: "left" };
+  lblT.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+  applyBorder(lblT);
+  for (let c = 2; c <= 4; c++) {
+    const cell = totalsRow.getCell(c);
+    const L = colLetter(c);
+    cell.value = { formula: `SUM(${L}${phFirstRow}:${L}${phLastRow})` };
+    cell.numFmt = "0.0000%";
+    cell.font = { bold: true, size: 10 };
+    cell.alignment = { horizontal: "right" };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+    applyBorder(cell);
+  }
+
+  // % of book row
+  const pctRow = ws.getRow(phPctRow);
+  const lblP = pctRow.getCell(1);
+  lblP.value = "% of book";
+  lblP.font = { bold: true, size: 10, color: { argb: SECTION_TITLE_RED } };
+  lblP.alignment = { horizontal: "left" };
+  applyBorder(lblP);
+  for (let c = 2; c <= 4; c++) {
+    const cell = pctRow.getCell(c);
+    const L = colLetter(c);
+    cell.value = { formula: `${L}${phTotalsRow}/$D$${phTotalsRow}` };
+    cell.numFmt = "0.0%";
+    cell.font = { bold: true, size: 10, color: { argb: SECTION_TITLE_RED } };
+    cell.alignment = { horizontal: "right" };
+    applyBorder(cell);
+  }
+
+  // Note row
+  const noteRow = ws.getRow(phPctRow + 2);
+  ws.mergeCells(phPctRow + 2, 1, phPctRow + 2, 4);
+  const note = noteRow.getCell(1);
+  note.value = "Source of truth for every age-weighted and blended figure in this workbook. "
+    + "Change any weight and the scenario tabs + Summary tab will recompute automatically.";
+  note.font = { italic: true, size: 9, color: { argb: LABEL_GREY } };
+  note.alignment = { wrapText: true, vertical: "top" };
+  noteRow.height = 32;
+
+  ws.getColumn(1).width = 8;
+  ws.getColumn(2).width = 16;
+  ws.getColumn(3).width = 16;
+  ws.getColumn(4).width = 16;
+}
+
 // ───────── SUMMARY SHEET ─────────
 // Rebuilds the HLI 2026.4 "Summary" sheet layout:
 //   Row: [label] [Scenario 1] [Scenario 2] ... (one col per scenario × CM)
 //   Rows: HLI 20Y, HLI 30Y, optional HLI blended (55% 20Y / 45% 30Y)
+//
+// Every data cell is a cross-sheet formula pointing at the corresponding scenario
+// tab's Blended PMPM cell — so Summary → scenario tab → PH Weights is one audit chain.
 function buildSummarySheet(wb, {
-  customer, scenarios, durations, cms, cachedBlended,
+  customer, scenarios, durations, cms, cachedBlended, layout,
 }) {
   const ws = wb.addWorksheet("Summary", {
     views: [{ state: "frozen", ySplit: 5, xSplit: 1 }],
@@ -143,9 +341,15 @@ function buildSummarySheet(wb, {
     }
   }
 
-  // Data rows: one per duration
+  // Data rows: one per duration. Each cell = cross-sheet ref to the scenario
+  // tab's Blended PMPM cell for that (scenario, duration, CM).
+  //
+  // Summary row geometry so the 55/45 row can reference these rows by letter:
+  //   Row (6 + durations.indexOf(d)) = HLI dY
+  const summaryRowForDur = new Map();
   let rowIdx = 6;
   for (const dur of durations) {
+    summaryRowForDur.set(dur, rowIdx);
     const r = ws.getRow(rowIdx);
     const label = r.getCell(1);
     label.value = {
@@ -157,10 +361,17 @@ function buildSummarySheet(wb, {
     label.alignment = { wrapText: true, vertical: "middle" };
     applyBorder(label);
 
+    const sIdx = layout.sortedDurs.indexOf(dur);
+    const blendedRow = layout.blendedRowForSorted(sIdx);
+
     for (const scen of scenarios) {
       for (const cm of cms) {
+        const cmIdx = cms.indexOf(cm);
+        const valueCol = layout.valueColForCm(cmIdx);
+        const sheetName = `${scen} case`;
         const c = r.getCell(colMap.get(`${scen}|${cm}`));
-        c.value = cachedBlended[`${scen}|${dur}|${cm}`].blendedPMPM;
+        const precomputed = cachedBlended[`${scen}|${dur}|${cm}`].blendedPMPM;
+        c.value = { formula: sheetRef(sheetName, valueCol, blendedRow), result: precomputed };
         styleDataCell(c, { fmt: MONEY_FMT, bold: true });
       }
     }
@@ -168,7 +379,8 @@ function buildSummarySheet(wb, {
     rowIdx++;
   }
 
-  // Optional 55/45 blended row (only if both 20Y and 30Y are in the selection)
+  // Optional 55/45 HLI-blended row (only when both 20Y and 30Y are selected).
+  // Uses a local formula against the 20Y / 30Y rows in the same Summary sheet.
   if (durations.includes(20) && durations.includes(30)) {
     const r = ws.getRow(rowIdx);
     const label = r.getCell(1);
@@ -181,12 +393,20 @@ function buildSummarySheet(wb, {
     label.alignment = { wrapText: true, vertical: "middle" };
     applyBorder(label);
 
+    const row20 = summaryRowForDur.get(20);
+    const row30 = summaryRowForDur.get(30);
+
     for (const scen of scenarios) {
       for (const cm of cms) {
+        const c = r.getCell(colMap.get(`${scen}|${cm}`));
+        const colIdx = colMap.get(`${scen}|${cm}`);
+        const L = colLetter(colIdx);
         const v20 = cachedBlended[`${scen}|20|${cm}`].blendedPMPM;
         const v30 = cachedBlended[`${scen}|30|${cm}`].blendedPMPM;
-        const c = r.getCell(colMap.get(`${scen}|${cm}`));
-        c.value = 0.55 * v20 + 0.45 * v30;
+        c.value = {
+          formula: `0.55*${L}${row20}+0.45*${L}${row30}`,
+          result: 0.55 * v20 + 0.45 * v30,
+        };
         styleDataCell(c, { fmt: MONEY_FMT, bold: true, color: BRAND_BLUE });
       }
     }
@@ -207,24 +427,37 @@ function buildSummarySheet(wb, {
 }
 
 // ───────── PER-SCENARIO SHEET ─────────
-// Mirrors HLI 2026.4 "Base case" sheet layout:
-//   Top block (rows 1-7): Blended / Male blended / Female blended PMPM per duration, per CM
-//   Row 9: "Growth Pricing Framework" band spanning the per-CM pricing grid
-//   Row 10+: per-age grid with columns [Age, dur-M, dur-F, ...] repeated per CM side-by-side
+// Mirrors HLI 2026.4 "Base case" sheet layout with key upgrades for auditability:
+//   • Top block row count scales with `durations.length`, and the "Growth Pricing
+//     Framework" band sits just below it (no fixed row 9 → no content collision).
+//   • Top-block Male / Female values are SUMPRODUCT formulas over the per-age grid
+//     weighted by 'PH Weights' — relabeled to make it clear they are age-weighted
+//     gender averages, not gender×overall-book blends.
+//   • Top-block Blended PMPM value is ('PH Weights'!$B$69 × Male_avg) +
+//     ('PH Weights'!$C$69 × Female_avg) — no hardcoded aggregation.
+//   • Per-age grid cells remain hardcoded (they are the NPV-solver's output and
+//     would otherwise require re-implementing the solver in Excel).
 function buildScenarioSheet(wb, {
-  scenarioName, scenarioParams, durations, cms, ageRange, cachedBlended, cachedPricing,
+  scenarioName, durations, cms, ageRange, cachedBlended, cachedPricing, layout,
 }) {
+  const {
+    blockWidth, blockGap, sortedDurs,
+    bandRow, headerRowDur, headerRowGender, gridFirstRow,
+    phFirstRow, phLastRow, phTotalsRow, phPctRow,
+    gridFirstAgeRow, gridLastAgeRow,
+    startColForCm, valueColForCm, maleGridCol, femaleGridCol,
+    blendedRowForSorted, maleRowForSorted, femaleRowForSorted,
+  } = layout;
+
   const ws = wb.addWorksheet(`${scenarioName} case`, {
-    views: [{ state: "frozen", ySplit: 11, xSplit: 1 }],
+    views: [{ state: "frozen", ySplit: headerRowGender, xSplit: 1 }],
   });
 
-  const blockWidth = 1 + durations.length * 2; // Age + (M,F) per duration
-  const blockGap = 1;
-
-  // ── Top block: blended summary per CM ──
-  // Each CM block occupies `blockWidth` columns starting at startCol.
+  // ── Top block: blended summary per CM (now a formula block) ──
   cms.forEach((cm, cmIdx) => {
-    const startCol = 1 + cmIdx * (blockWidth + blockGap);
+    const startCol = startColForCm(cmIdx);
+    const valueCol = valueColForCm(cmIdx);
+    const valueColLetter = colLetter(valueCol);
 
     // Title at row 1
     ws.mergeCells(1, startCol, 1, startCol + 2);
@@ -233,43 +466,74 @@ function buildScenarioSheet(wb, {
     title.font = { bold: true, size: 12, color: { argb: SECTION_TITLE_RED } };
     title.alignment = { horizontal: "left", vertical: "middle" };
 
-    // Data rows 2-7: 3 rows per duration (Blended / Male blended / Female blended)
-    // If multiple durations, iterate in descending order (30Y first, then 20Y) to match HLI reference
-    const sortedDurs = [...durations].sort((a, b) => b - a);
-    let row = 2;
-    for (const dur of sortedDurs) {
-      const b = cachedBlended[`${scenarioName}|${dur}|${cm}`];
-      const rows = [
-        [`${dur}Y`, "Blended PMPM", b.blendedPMPM, true],
-        [`${dur}Y`, "Male blended", b.malePMPM, false],
-        [`${dur}Y`, "Female blended", b.femalePMPM, false],
-      ];
-      for (const [durLabel, lbl, val, bold] of rows) {
-        const rr = ws.getRow(row);
-        const c1 = rr.getCell(startCol);
-        c1.value = durLabel;
-        c1.font = { bold: true, size: 10 };
-        c1.alignment = { horizontal: "left" };
+    const b = cachedBlended[`${scenarioName}|${durations[0]}|${cm}`];
+    const malePct = Math.round(b.maleWeight * 100);
+    const femalePct = Math.round(b.femaleWeight * 100);
 
-        const c2 = rr.getCell(startCol + 1);
-        c2.value = lbl;
-        c2.font = { bold, size: 10 };
-        c2.alignment = { horizontal: "left" };
+    sortedDurs.forEach((dur, sIdx) => {
+      const durIdx = durations.indexOf(dur);
+      const mCol = maleGridCol(cmIdx, durIdx);
+      const fCol = femaleGridCol(cmIdx, durIdx);
 
-        const c3 = rr.getCell(startCol + 2);
-        c3.value = val;
-        c3.numFmt = MONEY_FMT;
-        c3.font = { bold, size: 10, color: { argb: bold ? BRAND_BLUE : "FF0F172A" } };
-        c3.alignment = { horizontal: "right" };
-        row++;
-      }
-    }
+      const blendedRow = blendedRowForSorted(sIdx);
+      const maleRow = maleRowForSorted(sIdx);
+      const femaleRow = femaleRowForSorted(sIdx);
+
+      const precomp = cachedBlended[`${scenarioName}|${dur}|${cm}`];
+
+      // Labels (col 1 = duration tag, col 2 = descriptive label)
+      const setDurLabel = (r) => {
+        const c = ws.getRow(r).getCell(startCol);
+        c.value = `${dur}Y`;
+        c.font = { bold: true, size: 10 };
+        c.alignment = { horizontal: "left" };
+      };
+      const setDescLabel = (r, text, bold = false, color = "FF0F172A") => {
+        const c = ws.getRow(r).getCell(startCol + 1);
+        c.value = text;
+        c.font = { bold, size: 10, color: { argb: color } };
+        c.alignment = { horizontal: "left" };
+      };
+
+      setDurLabel(blendedRow);
+      setDescLabel(blendedRow, "Blended PMPM", true);
+
+      setDurLabel(maleRow);
+      setDescLabel(maleRow, `Male (age-weighted · ${malePct}% of mix)`);
+
+      setDurLabel(femaleRow);
+      setDescLabel(femaleRow, `Female (age-weighted · ${femalePct}% of mix)`);
+
+      // Male age-weighted avg = SUMPRODUCT(PH male weights, grid male column) / total male weight
+      const maleRange = sheetRangeRef(`${scenarioName} case`, mCol, gridFirstAgeRow, gridLastAgeRow);
+      const maleFormula =
+        `SUMPRODUCT('PH Weights'!$B$${phFirstRow}:$B$${phLastRow},${maleRange})`
+        + `/'PH Weights'!$B$${phTotalsRow}`;
+      const maleCell = ws.getRow(maleRow).getCell(valueCol);
+      maleCell.value = { formula: maleFormula, result: precomp.malePMPM };
+      styleDataCell(maleCell, { fmt: MONEY_FMT });
+
+      const femaleRange = sheetRangeRef(`${scenarioName} case`, fCol, gridFirstAgeRow, gridLastAgeRow);
+      const femaleFormula =
+        `SUMPRODUCT('PH Weights'!$C$${phFirstRow}:$C$${phLastRow},${femaleRange})`
+        + `/'PH Weights'!$C$${phTotalsRow}`;
+      const femaleCell = ws.getRow(femaleRow).getCell(valueCol);
+      femaleCell.value = { formula: femaleFormula, result: precomp.femalePMPM };
+      styleDataCell(femaleCell, { fmt: MONEY_FMT });
+
+      // Blended PMPM = ph_male_share × male_avg + ph_female_share × female_avg
+      const blendedFormula =
+        `'PH Weights'!$B$${phPctRow}*${valueColLetter}${maleRow}`
+        + `+'PH Weights'!$C$${phPctRow}*${valueColLetter}${femaleRow}`;
+      const blendedCell = ws.getRow(blendedRow).getCell(valueCol);
+      blendedCell.value = { formula: blendedFormula, result: precomp.blendedPMPM };
+      styleDataCell(blendedCell, { fmt: MONEY_FMT, bold: true, color: BRAND_BLUE });
+    });
   });
 
-  // ── Section band: "Growth Pricing Framework" ──
-  const bandRow = 9;
+  // ── Section band: "Growth Pricing Framework" (dynamic row) ──
   cms.forEach((cm, cmIdx) => {
-    const startCol = 1 + cmIdx * (blockWidth + blockGap);
+    const startCol = startColForCm(cmIdx);
     const endCol = startCol + blockWidth - 1;
     ws.mergeCells(bandRow, startCol, bandRow, endCol);
     const band = ws.getCell(bandRow, startCol);
@@ -281,28 +545,24 @@ function buildScenarioSheet(wb, {
   });
   ws.getRow(bandRow).height = 22;
 
-  // ── Header rows 10 (duration) + 11 (Age/Male/Female) ──
+  // ── Column headers: Duration-group / Age / Male / Female ──
   cms.forEach((cm, cmIdx) => {
-    const startCol = 1 + cmIdx * (blockWidth + blockGap);
-
-    const dHeader = ws.getRow(10);
-    const gHeader = ws.getRow(11);
+    const startCol = startColForCm(cmIdx);
+    const gHeader = ws.getRow(headerRowGender);
 
     // Age column spans both header rows
-    ws.mergeCells(10, startCol, 11, startCol);
-    const ageCell = ws.getCell(10, startCol);
+    ws.mergeCells(headerRowDur, startCol, headerRowGender, startCol);
+    const ageCell = ws.getCell(headerRowDur, startCol);
     ageCell.value = "Age";
     styleHeaderCell(ageCell, { fill: BRAND_BLUE });
 
     durations.forEach((dur, dIdx) => {
       const col = startCol + 1 + dIdx * 2;
-      // Duration group header (merged across the 2 gender cols)
-      ws.mergeCells(10, col, 10, col + 1);
-      const dCell = ws.getCell(10, col);
+      ws.mergeCells(headerRowDur, col, headerRowDur, col + 1);
+      const dCell = ws.getCell(headerRowDur, col);
       dCell.value = `${dur}-Year Policy`;
       styleHeaderCell(dCell, { fill: BRAND_BLUE_LIGHT });
 
-      // Male / Female sub-headers
       const mCell = gHeader.getCell(col);
       mCell.value = "Male";
       styleHeaderCell(mCell, { fill: "FF60A5FA", fontColor: "FFFFFFFF" });
@@ -311,17 +571,17 @@ function buildScenarioSheet(wb, {
       styleHeaderCell(fCell, { fill: "FFF472B6", fontColor: "FFFFFFFF" });
     });
   });
-  ws.getRow(10).height = 20;
-  ws.getRow(11).height = 20;
+  ws.getRow(headerRowDur).height = 20;
+  ws.getRow(headerRowGender).height = 20;
 
-  // ── Data rows: per age ──
+  // ── Data rows: per age (hardcoded — foundation of every upstream formula) ──
   const firstAge = ageRange.min;
   const lastAge = ageRange.max;
-  let row = 12;
+  let row = gridFirstRow;
   for (let age = firstAge; age <= lastAge; age++) {
     const rr = ws.getRow(row);
     cms.forEach((cm, cmIdx) => {
-      const startCol = 1 + cmIdx * (blockWidth + blockGap);
+      const startCol = startColForCm(cmIdx);
       const ageCell = rr.getCell(startCol);
       ageCell.value = age;
       ageCell.numFmt = INT_FMT;
@@ -342,7 +602,7 @@ function buildScenarioSheet(wb, {
         styleDataCell(fCell, { fmt: MONEY_FMT });
       });
     });
-    if ((row - 12) % 2 === 1) zebra(rr);
+    if ((row - gridFirstRow) % 2 === 1) zebra(rr);
     row++;
   }
 
@@ -350,9 +610,10 @@ function buildScenarioSheet(wb, {
   const totalCols = cms.length * blockWidth + (cms.length - 1) * blockGap;
   for (let c = 1; c <= totalCols; c++) {
     const modWithinBlock = (c - 1) % (blockWidth + blockGap);
-    // Age column is wider
     if (modWithinBlock === 0) ws.getColumn(c).width = 8;
-    else if (modWithinBlock === blockWidth) ws.getColumn(c).width = 2; // gap column
+    else if (modWithinBlock === blockWidth) ws.getColumn(c).width = 2;
+    else if (modWithinBlock === 1) ws.getColumn(c).width = 26; // description label col (shared with first-dur Male grid col)
+    else if (modWithinBlock === 2) ws.getColumn(c).width = 13; // value col (shared with first-dur Female grid col)
     else ws.getColumn(c).width = 11;
   }
 }
@@ -442,12 +703,12 @@ function buildMarginProfileSheet(wb, {
     views: [{ state: "frozen", ySplit: 3 }],
   });
 
-  ws.mergeCells(1, 1, 1, 7);
+  ws.mergeCells(1, 1, 1, 6);
   const title = ws.getCell(1, 1);
   title.value = "Blended Book Margin Profile";
   title.font = { bold: true, size: 14, color: { argb: BRAND_BLUE } };
 
-  ws.mergeCells(2, 1, 2, 7);
+  ws.mergeCells(2, 1, 2, 6);
   const sub = ws.getCell(2, 1);
   sub.value = "Year-by-year cohort margin using per-age solved PMPMs, weighted by HLI PH-mix.";
   sub.font = { italic: true, size: 10, color: { argb: LABEL_GREY } };
@@ -457,8 +718,7 @@ function buildMarginProfileSheet(wb, {
   for (const scen of scenarios) {
     for (const dur of durations) {
       for (const cm of cms) {
-        // Section title
-        ws.mergeCells(row, 1, row, 7);
+        ws.mergeCells(row, 1, row, 6);
         const st = ws.getCell(row, 1);
         st.value = `${scen} — ${dur}Y — ${Math.round(cm * 100)}% target CM`;
         st.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND_BLUE } };
@@ -468,9 +728,8 @@ function buildMarginProfileSheet(wb, {
         ws.getRow(row).height = 20;
         row++;
 
-        // Column headers
         const hdr = ws.getRow(row);
-        const headers = ["Year", "Retention %", "Revenue ($/PH)", "Cost ($/PH)", "Margin ($/PH)", "Margin %", "Cum NPV Margin ($/PH)"];
+        const headers = ["Year", "Retention %", "Revenue ($/PH)", "Cost ($/PH)", "Margin ($/PH)", "Margin %"];
         headers.forEach((h, i) => {
           const c = hdr.getCell(1 + i);
           c.value = h;
@@ -478,7 +737,6 @@ function buildMarginProfileSheet(wb, {
         });
         row++;
 
-        // Compute blended margin profile for this (scen, dur, cm)
         const profiles = [];
         for (let age = 15; age <= 80; age++) {
           const wM = PH_M[age] || 0, wF = PH_F[age] || 0;
@@ -494,14 +752,13 @@ function buildMarginProfileSheet(wb, {
         const totalW = profiles.reduce((s, x) => s + x.w, 0);
 
         for (let y = 0; y < dur; y++) {
-          let wRev = 0, wCost = 0, wMargin = 0, wCumNPV = 0, wSurv = 0, wMarginPct = 0;
+          let wRev = 0, wCost = 0, wMargin = 0, wSurv = 0, wMarginPct = 0;
           for (const { w, p } of profiles) {
             if (!p[y]) continue;
             const nw = w / totalW;
             wRev += p[y].revenue * nw;
             wCost += p[y].totalCost * nw;
             wMargin += p[y].margin * nw;
-            wCumNPV += p[y].cumNPVMargin * nw;
             wSurv += p[y].survival * nw;
             wMarginPct += p[y].marginPct * nw;
           }
@@ -535,23 +792,16 @@ function buildMarginProfileSheet(wb, {
             bold: true,
           });
 
-          rr.getCell(7).value = wCumNPV;
-          styleDataCell(rr.getCell(7), {
-            fmt: MONEY_FMT,
-            color: wCumNPV < 0 ? "FFDC2626" : "FF059669",
-          });
-
           if (y % 2 === 1) zebra(rr);
           row++;
         }
-        row++; // blank row between sections
+        row++;
       }
     }
   }
 
-  // Column widths
   ws.getColumn(1).width = 8;
-  [2, 3, 4, 5, 6, 7].forEach((c) => { ws.getColumn(c).width = 18; });
+  [2, 3, 4, 5, 6].forEach((c) => { ws.getColumn(c).width = 18; });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -614,18 +864,23 @@ export async function exportPricingWorkbook(config, onProgress) {
   wb.company = customer || "Need";
   wb.created = new Date();
 
-  buildSummarySheet(wb, { customer, scenarios, durations, cms, cachedBlended });
+  // Shared geometry used by Summary / Scenario / PH Weights so all cross-sheet
+  // formulas reference the same rows & columns.
+  const layout = buildLayout(durations, cms, ageRange);
+
+  buildSummarySheet(wb, { customer, scenarios, durations, cms, cachedBlended, layout });
   for (const scen of scenarios) {
     buildScenarioSheet(wb, {
       scenarioName: scen,
-      scenarioParams: SCENARIOS[scen],
       durations,
       cms,
       ageRange,
       cachedBlended,
       cachedPricing,
+      layout,
     });
   }
+  buildPHWeightsSheet(wb, { ageRange, layout });
   if (includeAssumptions) buildAssumptionsSheet(wb, { scenarios });
   if (includeMargin) buildMarginProfileSheet(wb, { scenarios, durations, cms, cachedPricing });
 

@@ -267,26 +267,23 @@ function ExportSection({ refCallback }) {
       <div className="max-w-7xl mx-auto">
         <SectionTitle
           label="06 — Export"
-          title="Export pricing deck"
-          subtitle="Generate a cleanly-formatted Excel workbook matching the HLI Pricing Table structure — tailored to the scenarios, durations, and target CMs you select below."
+          title="Export to Excel"
+          subtitle="Generate a cleanly-formatted Excel workbook tailored to the scenarios, durations, and target CMs you select below."
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column: configuration */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Customer */}
+            {/* File name */}
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Customer</h3>
-              <label className="block">
-                <span className="text-xs text-slate-500 mb-1.5 block">Customer name</span>
-                <input
-                  type="text"
-                  value={customer}
-                  onChange={(e) => setCustomer(e.target.value)}
-                  placeholder="e.g. Hanwha Life Insurance"
-                  className="w-full px-3 py-2 text-sm bg-slate-900 border border-slate-600 rounded-md text-white placeholder-slate-600 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400/30 transition-colors"
-                />
-              </label>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Name this file</h3>
+              <input
+                type="text"
+                value={customer}
+                onChange={(e) => setCustomer(e.target.value)}
+                placeholder="e.g. Hanwha Life Insurance"
+                className="w-full px-3 py-2 text-sm bg-slate-900 border border-slate-600 rounded-md text-white placeholder-slate-600 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400/30 transition-colors"
+              />
             </div>
 
             {/* Scenarios */}
@@ -303,7 +300,6 @@ function ExportSection({ refCallback }) {
                   />
                 ))}
               </div>
-              <p className="text-[11px] text-slate-600 mt-3">Each selected scenario gets its own tab with the full per-age pricing grid.</p>
             </div>
 
             {/* Durations */}
@@ -320,7 +316,6 @@ function ExportSection({ refCallback }) {
                   />
                 ))}
               </div>
-              <p className="text-[11px] text-slate-600 mt-3">Each duration becomes a column pair (Male/Female) in the pricing grid.</p>
             </div>
 
             {/* Target CMs */}
@@ -350,7 +345,6 @@ function ExportSection({ refCallback }) {
                   <span className="text-xs text-slate-500">%</span>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-600 mt-3">Each CM becomes a side-by-side pricing block within each scenario tab.</p>
             </div>
 
             {/* Age range + optional sheets */}
@@ -376,7 +370,6 @@ function ExportSection({ refCallback }) {
                     className="w-20 px-2.5 py-1.5 text-sm bg-slate-900 border border-slate-600 rounded-md text-white focus:border-blue-400 focus:outline-none"
                   />
                 </div>
-                <p className="text-[11px] text-slate-600 mt-3">HLI reference document covers ages 0–85. HLI PH weights exist only for 15–80 (blended summary uses that subset).</p>
               </div>
 
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
@@ -439,7 +432,7 @@ function ExportSection({ refCallback }) {
                 </button>
               </div>
               <p className="text-[11px] text-slate-600 mt-2">
-                {filenameOverride === null ? "Auto-generated from customer + current year/month." : "Custom filename. Click ↻ to reset."}
+                {filenameOverride === null ? "Auto-generated from the name above + current year/month." : "Custom filename. Click ↻ to reset."}
               </p>
 
               <div className="mt-5 pt-5 border-t border-slate-700/50">
@@ -842,7 +835,7 @@ export default function CancerPricingModel() {
               { idx: 3, num: "03", title: "Insurer Provided Data (cancer incidence, mortality, lapse rates)", desc: "Inputs" },
               { idx: 4, num: "04", title: "PMPM Table by Age and Gender", desc: "Outputs" },
               { idx: 5, num: "05", title: "Annual CM Over Cohort Life", desc: "Outputs" },
-              { idx: 6, num: "06", title: "Export Pricing Deck", desc: "Deliverable" },
+              { idx: 6, num: "06", title: "Export to Excel", desc: "Deliverable" },
               { idx: 7, num: "07", title: "How It Works", desc: "Calculation engine walkthrough" },
             ].map(s => (
               <button key={s.idx} onClick={() => scrollTo(s.idx)}
@@ -948,23 +941,39 @@ export default function CancerPricingModel() {
                 <NumInput label="Discount Rate %" value={params.discount * 100} onChange={v => updateParam("discount", v / 100)} step={0.5} unit="%" />
                 <NumInput label="Target CM %" value={targetCM * 100} onChange={v => setTargetCM(v / 100)} step={5} unit="%" />
                 <NumInput label="Cohort Size" value={cohortSize} onChange={setCohortSize} step={10000} />
-                <NumInput label="Nx Cost" value={params.nxCost} onChange={v => updateParam("nxCost", v)} step={1} unit="$/new PH" />
               </div>
             </div>
           </div>
 
-          {/* Case Fee */}
-          <div className="mb-10">
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
-              <div className="flex items-center justify-between mb-4">
+          {/* Nx Cost + Case Fee */}
+          <div className="mb-10 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            {/* Nx Cost */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Nx Cost</h3>
+                <button onClick={() => updateParam("nxCostEnabled", !params.nxCostEnabled)}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${params.nxCostEnabled ? "bg-blue-500" : "bg-slate-600"}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${params.nxCostEnabled ? "translate-x-4" : ""}`} />
+                </button>
+              </div>
+              {params.nxCostEnabled && (
+                <div className="mt-3">
+                  <NumInput label="Nx Cost" value={params.nxCost} onChange={v => updateParam("nxCost", v)} step={1} unit="$/new PH" />
+                </div>
+              )}
+            </div>
+
+            {/* Case Fee */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 px-4 py-3">
+              <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Case Fee</h3>
                 <button onClick={() => updateParam("caseFeeEnabled", !params.caseFeeEnabled)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${params.caseFeeEnabled ? "bg-blue-500" : "bg-slate-600"}`}>
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${params.caseFeeEnabled ? "translate-x-5" : ""}`} />
+                  className={`relative w-9 h-5 rounded-full transition-colors ${params.caseFeeEnabled ? "bg-blue-500" : "bg-slate-600"}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${params.caseFeeEnabled ? "translate-x-4" : ""}`} />
                 </button>
               </div>
               {params.caseFeeEnabled && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="mt-3 grid grid-cols-3 gap-3">
                   <NumInput label="Case Fee" value={params.caseFee} onChange={v => updateParam("caseFee", v)} step={1} unit="$/case" />
                   <NumInput label="Case Fee Year" value={params.caseFeeYear} onChange={v => updateParam("caseFeeYear", v)} step={1} />
                   <NumInput label="Case Fee Trigger %" value={params.caseFeeTrigger * 100} onChange={v => updateParam("caseFeeTrigger", v / 100)} step={0.1} unit="%" />
