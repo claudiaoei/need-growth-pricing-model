@@ -92,5 +92,5 @@ Open [http://localhost:3000](http://localhost:3000).
 Push to GitHub and import into [Vercel](https://vercel.com). The app will auto-deploy on every push to `main`.
 
 ## Reference
-- Excel model: `2026.04 Growth Pricing Framework v63_CF`
+- Excel model: `2026.04 Growth Pricing Framework v69_CF (simplified, cost scenario calc).xlsx`
 - Key Excel sheets: "Cost Scenarios", "Control Center", "PMPM by PH Demo (Term)", "CM calc (Scenario 1)", "Output (Scenario 1)", "Retention rate"

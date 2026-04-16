@@ -1,228 +1,13 @@
 "use client";
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, AreaChart, Area, BarChart, Bar, ComposedChart } from "recharts";
-
-// ═══════════════════════════════════════════════════════════════
-// DATA TABLES (from HLI 2026.04.07 pricing data)
-// ═══════════════════════════════════════════════════════════════
-const LAPSE_20YR=[0.1137,0.1285,0.1181,0.0911,0.0844,0.0717,0.0592,0.0327,0.0248,0.0187,0.0142,0.0107,0.0081,0.0061,0.0045,0.0033,0.0025,0.0018,0.0013,0.001,0.012,0.008,0.008,0.008,0.008,0.008,0.008,0.008,0.008,0.008];
-const LAPSE_30YR=[0.1137,0.1285,0.1181,0.0911,0.0844,0.0717,0.0592,0.0327,0.0248,0.0187,0.0142,0.0107,0.0081,0.0061,0.0045,0.0033,0.0025,0.0018,0.0013,0.001,0.001,0.001,0.001,0.001,0.001,0.001,0.001,0.001,0.001,0.001,0.0095,0.008];
-const MORT_M=[0.00176,0.00011,9e-05,8e-05,7e-05,5e-05,5e-05,4e-05,4e-05,5e-05,5e-05,6e-05,8e-05,0.0001,0.00012,0.00016,0.00019,0.00023,0.00026,0.00029,0.00032,0.00035,0.00037,0.00038,0.0004,0.00041,0.00042,0.00044,0.00045,0.00047,0.0005,0.00052,0.00055,0.00058,0.00062,0.00065,0.00069,0.00073,0.00077,0.00081,0.00085,0.0009,0.00096,0.00102,0.0011,0.00119,0.00128,0.00139,0.0015,0.00161,0.00174,0.00188,0.00202,0.00218,0.00235,0.00254,0.00274,0.00296,0.00321,0.00347,0.00377,0.00411,0.00449,0.00492,0.00541,0.00597,0.0066,0.00732,0.00813,0.00905,0.0101,0.01133,0.01279,0.01453,0.01656,0.01889,0.02148,0.0243,0.02752,0.03097,0.0344,0.03808,0.04213,0.04661,0.05156,0.05701,0.06302,0.06964,0.07694,0.08497,0.09379,0.10282,0.11221,0.12243,0.13352,0.14554,0.15857,0.17268,0.18794,0.20443,0.22221,0.24134,0.26192,0.28401,0.30765,0.33294,0.35989,0.38856,0.41895,0.45108,1,0,0];
-const MORT_F=[0.00149,0.0001,8e-05,6e-05,5e-05,4e-05,4e-05,3e-05,3e-05,3e-05,3e-05,4e-05,4e-05,5e-05,7e-05,9e-05,0.00011,0.00013,0.00016,0.00018,0.0002,0.00022,0.00023,0.00024,0.00024,0.00025,0.00025,0.00026,0.00028,0.0003,0.00032,0.00035,0.00037,0.00039,0.0004,0.00041,0.00043,0.00044,0.00046,0.00047,0.0005,0.00052,0.00055,0.00057,0.0006,0.00064,0.00067,0.00071,0.00076,0.00081,0.00087,0.00093,0.00098,0.00104,0.00109,0.00114,0.0012,0.00126,0.00133,0.00141,0.0015,0.00161,0.00175,0.00191,0.00211,0.00234,0.00261,0.00292,0.00326,0.00365,0.0041,0.00465,0.00532,0.00614,0.00713,0.00832,0.00973,0.01138,0.01331,0.01556,0.01798,0.02076,0.02397,0.02767,0.03193,0.03684,0.04248,0.04897,0.05642,0.06496,0.07475,0.08597,0.09877,0.11336,0.12997,0.14275,0.1557,0.16974,0.18495,0.20138,0.21912,0.23826,0.25886,0.281,0.30472,0.33014,0.35723,0.3861,0.41676,0.44919,0.48341,0.51938,1];
-const INC_M=[0.000571,0.000495,0.000425,0.000362,0.000309,0.000268,0.000239,0.000221,0.000213,0.000212,0.000217,0.000225,0.000236,0.00025,0.000266,0.000285,0.000307,0.000331,0.000357,0.000386,0.000419,0.00046,0.000511,0.000576,0.000655,0.000744,0.000838,0.000929,0.001014,0.001093,0.00117,0.001251,0.001342,0.001447,0.001565,0.001693,0.001827,0.001964,0.002103,0.002242,0.00238,0.002512,0.002633,0.002737,0.00283,0.002927,0.00305,0.003218,0.003446,0.003733,0.004068,0.004436,0.004826,0.005231,0.005654,0.006101,0.006573,0.007071,0.007597,0.008155,0.008756,0.009418,0.010158,0.01099,0.011918,0.012934,0.01403,0.015212,0.016487,0.017841,0.019231,0.020591,0.021852,0.022973,0.023973,0.024924,0.025932,0.027128,0.02858,0.030238,0.031948,0.033526,0.034813,0.03573,0.036296,0.036602,0.036757,0.036856,0.036941,0.037006,0.037033,0.03704,0.037043,0.037048,0.037054,0.037056,0.037057,0.037057,0.037057,0.037058,0.037058,0.037058,0.037058,0.037058,0.037058,0.037058,0.037058,0.037058,0.037058,0.037058,0,0,0];
-const INC_F=[0.000504,0.00043,0.000362,0.000305,0.000261,0.00023,0.000211,0.000201,0.0002,0.000205,0.000215,0.000231,0.00025,0.000274,0.000302,0.000338,0.000381,0.000435,0.000502,0.000583,0.000678,0.000787,0.000906,0.001036,0.001179,0.001336,0.001513,0.001718,0.001956,0.002226,0.002521,0.002827,0.003133,0.003431,0.003719,0.003994,0.004259,0.004514,0.004762,0.004998,0.00522,0.005427,0.005621,0.005803,0.00597,0.006116,0.006237,0.00633,0.006394,0.00643,0.006447,0.006455,0.006465,0.006478,0.006497,0.006521,0.006556,0.006601,0.006658,0.006729,0.00682,0.006936,0.007082,0.007261,0.007473,0.007718,0.007993,0.008291,0.008611,0.008959,0.009346,0.009784,0.010293,0.010888,0.011557,0.012261,0.012944,0.01356,0.014085,0.014519,0.014883,0.015199,0.015489,0.015763,0.016018,0.016247,0.016452,0.016637,0.016803,0.016951,0.01708,0.017193,0.017293,0.017381,0.017458,0.017524,0.01758,0.017629,0.017671,0.017708,0.017738,0.017764,0.017786,0.017804,0.01782,0.017832,0.017844,0.017856,0.017864,0.017869,0.017873,0.017879,0];
-const PH_M={15:0.001025080298,16:0.0013212146063,17:0.001184537233,18:0.001685687601,19:0.0024146335907,20:0.0026196496503,21:0.0026652087747,22:0.0030524613317,23:0.0031663591426,24:0.0040547620675,25:0.004123100754,26:0.0043281168136,27:0.0053531971116,28:0.0045559124354,29:0.0043736759379,30:0.0048520467437,31:0.0048748263058,32:0.0050115036789,33:0.0054215357981,34:0.0050798423654,35:0.0050798423654,36:0.0046470306841,37:0.0047381489328,38:0.0046925898084,39:0.0052392993007,40:0.0055126540468,41:0.0046242511219,42:0.0063327182852,43:0.0070161051505,44:0.0077906102645,45:0.0073805781453,46:0.0082917606324,47:0.0081550832593,48:0.0082234219458,49:0.0089295883733,50:0.0089751474977,51:0.0101369051687,52:0.0100230073578,53:0.0120276088294,54:0.0126654365703,55:0.0122781840133,56:0.0118453723319,57:0.0129843504408,58:0.0110480876558,59:0.0111392059045,60:0.0117086949589,61:0.0111164263423,62:0.0099318891091,63:0.0109341898449,64:0.0103874803526,65:0.0106836146609,66:0.0091118248707,67:0.007995626324,68:0.0071300029613,69:0.0062188204743,70:0.0055582131711,71:0.004123100754,72:0.0033258160778,73:0.002961343083,74:0.0022551766555,75:0.0020046014716,76:0.0015262306658,77:0.0016173489146,78:0.0009567416114,79:0.0009111824871,80:0.0003416934327};
-const PH_F={15:0.0007061664275,16:0.0013895532928,17:0.001184537233,18:0.0017312467254,19:0.001799585412,20:0.0032574773913,21:0.002961343083,22:0.0033030365156,23:0.0035080525752,24:0.004145880316,25:0.004510353311,26:0.0051937401763,27:0.0044875737488,28:0.0046925898084,29:0.0049431649924,30:0.0050115036789,31:0.0054215357981,32:0.0048292671815,33:0.0058087883551,34:0.0064693956582,35:0.0048520467437,36:0.0049659445545,37:0.0057632292307,38:0.0061960409121,39:0.0065832934691,40:0.0076311533292,41:0.0069705460261,42:0.0076311533292,43:0.00972687305,44:0.0127109956947,45:0.0112531037153,46:0.0138955329279,47:0.0119592701428,48:0.0124148613864,49:0.0131210278138,50:0.0136677373061,51:0.0147383767284,52:0.0169252146974,53:0.0183375475523,54:0.0194765256612,55:0.02009157384,56:0.0191120526663,57:0.0206382833322,58:0.0193626278503,59:0.0186109022985,60:0.0191576117907,61:0.0183375475523,62:0.0156267796533,63:0.0188159183581,64:0.0180641928062,65:0.0189070366068,66:0.0159684730859,67:0.0128704526299,68:0.0120276088294,69:0.0097040934873,70:0.0090662657464,71:0.0090662657464,72:0.0052620788628,73:0.0051937401763,74:0.004123100754,75:0.0032346978291,76:0.0033258160778,77:0.002460192715,78:0.002574090526,79:0.0017312467254,80:0.0007517255518};
-
-// ═══════════════════════════════════════════════════════════════
-// INFRASTRUCTURE BASE COSTS (from HLI vendor P&L, Feb 2026)
-// Derived from SUMPRODUCT of vendor costs × mode splits / active PHs or cases
-// ═══════════════════════════════════════════════════════════════
-const INFRA_HX_PER_PH_MONTHLY = 0.04306539294945023;  // $/PH/month (from R101)
-const INFRA_TX_PER_CASE = 76.05557698675499;           // $/case (from S101)
-const INFRA_RX_PER_CASE = 22.15703918322296;           // $/case (from T101)
-
-// ═══════════════════════════════════════════════════════════════
-// SCENARIO PRESETS
-// ═══════════════════════════════════════════════════════════════
-const SCENARIOS = {
-  "Base – April 2026": {
-    desc: "Updated baseline linked to actual COGS as of April 2026.",
-    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
-    inflation: 0.05, discount: 0.05,
-    haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0,
-    hxStepUp: 0, hxStepYears: "",
-    txStepDown: 0, txStepYears: "",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
-  "Treatment Mode Costs Decrease": {
-    desc: "AI acceleration doubles Halo efficiency to 20% starting yr 2, Treatment costs step down 10%/yr in yrs 2–7.",
-    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
-    inflation: 0.05, discount: 0.05,
-    haloEff: 0.20, haloYears: "2,3,4,5,6,7",
-    infraStepUp: 0,
-    hxStepUp: 0, hxStepYears: "",
-    txStepDown: 0.10, txStepYears: "2,3,4,5,6,7",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
-  "Healthy Mode Costs Increase": {
-    desc: "Increased investment in cancer prevention — Healthy Mode costs grow 15% above inflation in yrs 2–5, then inflation-only from yr 6.",
-    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
-    inflation: 0.05, discount: 0.05,
-    haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0,
-    hxStepUp: 0.15, hxStepYears: "2,3,4,5",
-    txStepDown: 0, txStepYears: "",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
-  "Compute / Infra Costs Go Up": {
-    desc: "Rising compute and cloud costs — 10% infrastructure step-up in yrs 2–10 on top of inflation, inflation-only from yr 11.",
-    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
-    inflation: 0.05, discount: 0.05,
-    haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0.10,
-    hxStepUp: 0, hxStepYears: "",
-    txStepDown: 0, txStepYears: "",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
-  "Most Conservative Headwinds": {
-    desc: "Combined stress: Hx +10% yrs 2–5, Tx step-down 8% yrs 3–7, 10% Halo efficiency, 10% infra step-up yrs 2–10 (inflation-only from yr 11).",
-    hx: 0.4669550799905655, tx: 393.3308883146762, halo: 562.5881058045244, recoveryPct: 0.1,
-    inflation: 0.05, discount: 0.05,
-    haloEff: 0.10, haloYears: "3,4,5,6,7",
-    infraStepUp: 0.10,
-    hxStepUp: 0.10, hxStepYears: "2,3,4,5",
-    txStepDown: 0.08, txStepYears: "3,4,5,6,7",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
-  "Base – July 2025": {
-    desc: "Original baseline from July 2025 pricing engagement. Hardcoded starting costs, 8% Halo efficiency yrs 3–7, 50% Recovery utilization, no infrastructure step-up.",
-    hx: 0.41, tx: 217, halo: 658, recoveryPct: 0.5,
-    inflation: 0.05, discount: 0.05,
-    haloEff: 0.08, haloYears: "3,4,5,6,7",
-    infraStepUp: 0,
-    hxStepUp: 0, hxStepYears: "",
-    txStepDown: 0, txStepYears: "",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
-  "Custom": {
-    desc: "Start from scratch — fill in your own assumptions.",
-    hx: 0, tx: 0, halo: 0, recoveryPct: 0,
-    inflation: 0, discount: 0,
-    haloEff: 0, haloYears: "",
-    infraStepUp: 0,
-    hxStepUp: 0, hxStepYears: "",
-    txStepDown: 0, txStepYears: "",
-    nxCost: 0, caseFee: 0, caseFeeEnabled: false, caseFeeYear: 1, caseFeeTrigger: 0.0075,
-  },
-};
-
-// ═══════════════════════════════════════════════════════════════
-// CALCULATION ENGINE
-// ═══════════════════════════════════════════════════════════════
-function parseYears(s) {
-  if (!s || !s.trim()) return new Set();
-  return new Set(s.split(",").map(x => parseInt(x.trim())).filter(x => !isNaN(x)));
-}
-
-// Build per-year infrastructure cost curves (Hx infra, Tx infra, Rx infra)
-// Matches Excel Cost Scenarios: compound at (inflation + infraStepUp) for years 2-10,
-// then inflation-only from year 11 onward.
-function buildInfraCurves(params, nYears) {
-  const { inflation, infraStepUp } = params;
-  const hxInfra = [INFRA_HX_PER_PH_MONTHLY * 12]; // annualize
-  const txInfra = [INFRA_TX_PER_CASE];
-  const rxInfra = [INFRA_RX_PER_CASE];
-  for (let y = 2; y <= nYears; y++) {
-    const rate = y <= 10 ? (inflation + infraStepUp) : inflation;
-    hxInfra.push(hxInfra[y - 2] * (1 + rate));
-    txInfra.push(txInfra[y - 2] * (1 + rate));
-    rxInfra.push(rxInfra[y - 2] * (1 + rate));
-  }
-  return { hxInfra, txInfra, rxInfra };
-}
-
-function buildCostCurves(params, nYears) {
-  const { hx, tx, halo, recoveryPct, inflation, haloEff, haloYears: haloYearsStr,
-          hxStepUp, hxStepYears: hxStepYearsStr,
-          txStepDown, txStepYears: txStepYearsStr } = params;
-  const haloYrs = parseYears(haloYearsStr);
-  const hxStepYrs = parseYears(hxStepYearsStr);
-  const txStepYrs = parseYears(txStepYearsStr);
-
-  // Service-level cost curves (from Cost Scenarios — no infra)
-  // hx is monthly cost per PH; annualize to match Excel (×12)
-  const hxCurve = [hx * 12];
-  const txCurve = [tx];
-  const haloCurve = [halo];
-
-  for (let y = 2; y <= nYears; y++) {
-    const hxMult = hxStepYrs.has(y) ? (1 + hxStepUp) : 1;
-    hxCurve.push(hxCurve[y - 2] * (1 + inflation) * hxMult);
-    const txMult = txStepYrs.has(y) ? (1 - txStepDown) : 1;
-    txCurve.push(txCurve[y - 2] * (1 + inflation) * txMult);
-    const haloMult = haloYrs.has(y) ? (1 - haloEff) : 1;
-    haloCurve.push(haloCurve[y - 2] * (1 + inflation) * haloMult);
-  }
-  const recoveryCurve = txCurve.map((t, i) => recoveryPct * (t + haloCurve[i]));
-
-  // Infrastructure curves
-  const { hxInfra, txInfra, rxInfra } = buildInfraCurves(params, nYears);
-
-  // Total cost per PH = service + infra (matching Excel Control Center rows 63, 72)
-  const totalHxCurve = hxCurve.map((v, i) => v + hxInfra[i]);
-  const totalTxPerCase = txCurve.map((t, i) => t + haloCurve[i] + txInfra[i] + recoveryCurve[i] + rxInfra[i]);
-
-  return { hxCurve, txCurve, haloCurve, recoveryCurve, hxInfra, txInfra, rxInfra, totalHxCurve, totalTxPerCase };
-}
-
-function runCohort(age, gender, params, duration) {
-  const nYears = duration;
-  const lapse = duration <= 20 ? LAPSE_20YR : LAPSE_30YR;
-  const mort = gender === "M" ? MORT_M : MORT_F;
-  const inc = gender === "M" ? INC_M : INC_F;
-  const curves = buildCostCurves(params, nYears);
-  const { nxCost = 0, inflation } = params;
-  const years = [];
-  let retention = 1;
-  for (let y = 1; y <= nYears; y++) {
-    const lapseRate = lapse[y - 1] || 0.008;
-    const ageAtYear = age + y - 1;  // age 40 in year 1 = index 40, year 2 = index 41, etc.
-    const mortRate = (ageAtYear < mort.length) ? mort[ageAtYear] : 0.1;
-    const incRate = (ageAtYear < inc.length) ? inc[ageAtYear] : (gender === "M" ? 0.037 : 0.018);
-    // Additive attrition: matches Excel Retention rate sheet (lapse + mort, capped at 1)
-    const attrition = Math.min(lapseRate + mortRate, 1);
-    retention *= (1 - attrition);
-    const hxAnnual = curves.totalHxCurve[y - 1];
-    const txPerCase = curves.totalTxPerCase[y - 1];
-    // Nx cost only in year 1 (per-new-PH onboarding, inflated from base)
-    const nxAnnual = y === 1 ? nxCost : 0;
-    years.push({ year: y, survival: retention, incRate, hxAnnual, txPerCase, nxAnnual });
-  }
-  return { years, curves };
-}
-
-function solvePMPM(age, gender, params, duration, targetCM) {
-  const { years } = runCohort(age, gender, params, duration);
-  const { discount, caseFee: rawCaseFee = 0, caseFeeEnabled = false, caseFeeYear = 1, caseFeeTrigger = 0.0075 } = params;
-  const caseFee = caseFeeEnabled ? rawCaseFee : 0;
-  let npvCost = 0, npvPHYears = 0, npvCaseFee = 0;
-  for (const yr of years) {
-    const df = 1 / Math.pow(1 + discount, yr.year);
-    const phs = yr.survival;
-    // Total cost per PH in this year: Hx + incidence × Tx + Nx
-    npvCost += (phs * yr.hxAnnual + phs * yr.incRate * yr.txPerCase + yr.nxAnnual) * df;
-    npvPHYears += phs * df;
-    // Case fee revenue: triggered when incidence exceeds threshold, only after kick-in year
-    if (caseFee > 0 && yr.year >= caseFeeYear) {
-      const excessInc = Math.max(yr.incRate - caseFeeTrigger, 0);
-      const inflatedFee = caseFee * Math.pow(1 + (params.inflation || 0), yr.year - caseFeeYear);
-      npvCaseFee += phs * excessInc * inflatedFee * df;
-    }
-  }
-  if (npvPHYears === 0 || targetCM >= 1) return 0;
-  // PMPM = (NPV_cost / (1-CM) - NPV_casefee) / NPV_PH_years / 12
-  return (npvCost / (1 - targetCM) - npvCaseFee) / npvPHYears / 12;
-}
-
-function computeMarginProfile(age, gender, params, duration, pmpm) {
-  const { years } = runCohort(age, gender, params, duration);
-  const { discount } = params;
-  const profile = [];
-  let cumNPVMargin = 0;
-  for (const yr of years) {
-    const df = 1 / Math.pow(1 + discount, yr.year);
-    const phs = yr.survival;
-    const revenue = phs * pmpm * 12;
-    const totalCost = phs * yr.hxAnnual + phs * yr.incRate * yr.txPerCase + yr.nxAnnual;
-    const margin = revenue - totalCost;
-    const marginPct = revenue > 0 ? (margin / revenue) * 100 : 0;
-    cumNPVMargin += margin * df;
-    profile.push({ year: yr.year, revenue, totalCost, margin, marginPct: Math.round(marginPct * 10) / 10, cumNPVMargin, survival: Math.round(yr.survival * 10000) / 100 });
-  }
-  return profile;
-}
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, AreaChart, Area } from "recharts";
+import {
+  LAPSE_20YR, LAPSE_30YR, MORT_M, MORT_F, INC_M, INC_F, PH_M, PH_F,
+  INFRA_HX_PER_PH_MONTHLY, SCENARIOS,
+  parseYears, buildCostCurves, runCohort, solvePMPM, computeMarginProfile,
+  getBlendedStats,
+} from "./lib/pricingEngine";
+import { exportPricingWorkbook, autoFilename, ensureXlsx } from "./lib/exportToExcel";
 
 // ═══════════════════════════════════════════════════════════════
 // UI HELPERS
@@ -327,30 +112,429 @@ function SectionTitle({ label, title, subtitle }) {
   );
 }
 
-// Blended demographics
-function getBlendedStats() {
-  let wAgeM = 0, wAgeF = 0, tWM = 0, tWF = 0;
-  for (let a = 15; a <= 80; a++) {
-    const wM = PH_M[a] || 0, wF = PH_F[a] || 0;
-    wAgeM += a * wM; tWM += wM; wAgeF += a * wF; tWF += wF;
-  }
-  return {
-    avgAge: ((wAgeM + wAgeF) / (tWM + tWF)).toFixed(1),
-    avgAgeM: (wAgeM / tWM).toFixed(1),
-    avgAgeF: (wAgeF / tWF).toFixed(1),
-    femalePct: ((tWF / (tWM + tWF)) * 100).toFixed(1),
-    malePct: ((tWM / (tWM + tWF)) * 100).toFixed(1),
+// ═══════════════════════════════════════════════════════════════
+// EXPORT SECTION
+// ═══════════════════════════════════════════════════════════════
+const EXPORT_DEFAULTS = {
+  scenarios: { Base: true, Bull: true, Bear: true },
+  durations: { 3: false, 5: false, 10: false, 15: false, 20: true, 30: true },
+  cms: { 0.70: true, 0.65: true },
+  ageMin: 0,
+  ageMax: 85,
+  includeAssumptions: false,
+  includeMargin: false,
+};
+const EXPORT_STORAGE_KEY = "needPricingExportConfig";
+const DURATION_OPTIONS = [3, 5, 10, 15, 20, 30];
+const CM_OPTIONS = [0.70, 0.65];
+
+function CheckChip({ checked, onChange, label, id }) {
+  return (
+    <button
+      type="button"
+      id={id}
+      onClick={() => onChange(!checked)}
+      className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-sm rounded-full border transition-all ${
+        checked
+          ? "bg-blue-500/20 border-blue-400/60 text-blue-200 font-medium"
+          : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500"
+      }`}
+    >
+      <span
+        className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${
+          checked ? "bg-blue-400 border-blue-300" : "bg-slate-700 border-slate-600"
+        }`}
+      >
+        {checked && (
+          <svg className="w-2.5 h-2.5 text-slate-900" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </span>
+      {label}
+    </button>
+  );
+}
+
+function ExportSection({ refCallback }) {
+  const [customer, setCustomer] = useState("");
+  const [scenarios, setScenarios] = useState(EXPORT_DEFAULTS.scenarios);
+  const [durations, setDurations] = useState(EXPORT_DEFAULTS.durations);
+  const [cms, setCms] = useState(EXPORT_DEFAULTS.cms);
+  const [customCmPct, setCustomCmPct] = useState("");
+  const [ageMin, setAgeMin] = useState(EXPORT_DEFAULTS.ageMin);
+  const [ageMax, setAgeMax] = useState(EXPORT_DEFAULTS.ageMax);
+  const [includeAssumptions, setIncludeAssumptions] = useState(EXPORT_DEFAULTS.includeAssumptions);
+  const [includeMargin, setIncludeMargin] = useState(EXPORT_DEFAULTS.includeMargin);
+  const [filenameOverride, setFilenameOverride] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [error, setError] = useState(null);
+  const [successName, setSuccessName] = useState(null);
+  const hydratedRef = useRef(false);
+
+  // Load persisted prefs
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(EXPORT_STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p.scenarios) setScenarios({ ...EXPORT_DEFAULTS.scenarios, ...p.scenarios });
+        if (p.durations) setDurations({ ...EXPORT_DEFAULTS.durations, ...p.durations });
+        if (p.cms) setCms({ ...EXPORT_DEFAULTS.cms, ...p.cms });
+        if (typeof p.ageMin === "number") setAgeMin(p.ageMin);
+        if (typeof p.ageMax === "number") setAgeMax(p.ageMax);
+        if (typeof p.includeAssumptions === "boolean") setIncludeAssumptions(p.includeAssumptions);
+        if (typeof p.includeMargin === "boolean") setIncludeMargin(p.includeMargin);
+      }
+    } catch {}
+    hydratedRef.current = true;
+  }, []);
+
+  // Persist prefs (excluding customer & filename)
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    try {
+      localStorage.setItem(
+        EXPORT_STORAGE_KEY,
+        JSON.stringify({ scenarios, durations, cms, ageMin, ageMax, includeAssumptions, includeMargin })
+      );
+    } catch {}
+  }, [scenarios, durations, cms, ageMin, ageMax, includeAssumptions, includeMargin]);
+
+  const selectedScenarios = useMemo(() => Object.keys(scenarios).filter(k => scenarios[k]), [scenarios]);
+  const selectedDurations = useMemo(
+    () => DURATION_OPTIONS.filter(d => durations[d]).sort((a, b) => a - b),
+    [durations]
+  );
+  const selectedCms = useMemo(() => {
+    const base = CM_OPTIONS.filter(v => cms[v]);
+    const custom = parseFloat(customCmPct);
+    if (!isNaN(custom) && custom > 0 && custom < 100) {
+      const asFrac = custom / 100;
+      if (!base.includes(asFrac)) base.push(asFrac);
+    }
+    return base.sort((a, b) => b - a); // descending (70% first)
+  }, [cms, customCmPct]);
+
+  const autoName = useMemo(() => autoFilename(customer), [customer]);
+  const currentFilename = filenameOverride ?? autoName;
+
+  const validation = useMemo(() => {
+    const errs = [];
+    if (!customer.trim()) errs.push("Enter a customer name");
+    if (selectedScenarios.length === 0) errs.push("select at least one scenario");
+    if (selectedDurations.length === 0) errs.push("select at least one duration");
+    if (selectedCms.length === 0) errs.push("select at least one target CM");
+    if (ageMin < 0 || ageMax > 110 || ageMin > ageMax) errs.push("age range is invalid");
+    if (!currentFilename.trim()) errs.push("enter a filename");
+    return errs;
+  }, [customer, selectedScenarios, selectedDurations, selectedCms, ageMin, ageMax, currentFilename]);
+
+  const canDownload = validation.length === 0 && !busy;
+
+  const handleDownload = async () => {
+    setBusy(true);
+    setError(null);
+    setSuccessName(null);
+    setProgress({ done: 0, total: 0 });
+    try {
+      await exportPricingWorkbook(
+        {
+          customer: customer.trim(),
+          scenarios: selectedScenarios,
+          durations: selectedDurations,
+          cms: selectedCms,
+          ageRange: { min: ageMin, max: ageMax },
+          includeAssumptions,
+          includeMargin,
+          filename: currentFilename,
+        },
+        (done, total) => setProgress({ done, total })
+      );
+      setSuccessName(ensureXlsx(currentFilename));
+    } catch (e) {
+      setError(e?.message || "Failed to generate workbook");
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const progressPct = progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : 0;
+
+  return (
+    <section ref={refCallback} id="export" className="bg-slate-900 text-white px-6 py-16 md:px-12 lg:px-20">
+      <div className="max-w-7xl mx-auto">
+        <SectionTitle
+          label="06 — Export"
+          title="Export pricing deck"
+          subtitle="Generate a cleanly-formatted Excel workbook matching the HLI Pricing Table structure — tailored to the scenarios, durations, and target CMs you select below."
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left column: configuration */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Customer */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Customer</h3>
+              <label className="block">
+                <span className="text-xs text-slate-500 mb-1.5 block">Customer name</span>
+                <input
+                  type="text"
+                  value={customer}
+                  onChange={(e) => setCustomer(e.target.value)}
+                  placeholder="e.g. Hanwha Life Insurance"
+                  className="w-full px-3 py-2 text-sm bg-slate-900 border border-slate-600 rounded-md text-white placeholder-slate-600 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400/30 transition-colors"
+                />
+              </label>
+            </div>
+
+            {/* Scenarios */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Scenarios</h3>
+              <div className="flex flex-wrap gap-2">
+                {["Base", "Bull", "Bear"].map(s => (
+                  <CheckChip
+                    key={s}
+                    checked={!!scenarios[s]}
+                    onChange={(v) => setScenarios(prev => ({ ...prev, [s]: v }))}
+                    label={s}
+                    id={`exp-scen-${s}`}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-600 mt-3">Each selected scenario gets its own tab with the full per-age pricing grid.</p>
+            </div>
+
+            {/* Durations */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Service Durations</h3>
+              <div className="flex flex-wrap gap-2">
+                {DURATION_OPTIONS.map(d => (
+                  <CheckChip
+                    key={d}
+                    checked={!!durations[d]}
+                    onChange={(v) => setDurations(prev => ({ ...prev, [d]: v }))}
+                    label={`${d}yr`}
+                    id={`exp-dur-${d}`}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-600 mt-3">Each duration becomes a column pair (Male/Female) in the pricing grid.</p>
+            </div>
+
+            {/* Target CMs */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Target Contribution Margin</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {CM_OPTIONS.map(v => (
+                  <CheckChip
+                    key={v}
+                    checked={!!cms[v]}
+                    onChange={(checked) => setCms(prev => ({ ...prev, [v]: checked }))}
+                    label={`${Math.round(v * 100)}%`}
+                    id={`exp-cm-${v}`}
+                  />
+                ))}
+                <div className="flex items-center gap-1.5 ml-2">
+                  <span className="text-xs text-slate-500">Custom:</span>
+                  <input
+                    type="number"
+                    value={customCmPct}
+                    onChange={(e) => setCustomCmPct(e.target.value)}
+                    placeholder="—"
+                    min={1}
+                    max={99}
+                    className="w-16 px-2 py-1 text-sm bg-slate-900 border border-slate-600 rounded-md text-white placeholder-slate-600 focus:border-blue-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="text-xs text-slate-500">%</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-3">Each CM becomes a side-by-side pricing block within each scenario tab.</p>
+            </div>
+
+            {/* Age range + optional sheets */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Age Range</h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={ageMin}
+                    onChange={(e) => setAgeMin(parseInt(e.target.value) || 0)}
+                    min={0}
+                    max={110}
+                    className="w-20 px-2.5 py-1.5 text-sm bg-slate-900 border border-slate-600 rounded-md text-white focus:border-blue-400 focus:outline-none"
+                  />
+                  <span className="text-slate-500">–</span>
+                  <input
+                    type="number"
+                    value={ageMax}
+                    onChange={(e) => setAgeMax(parseInt(e.target.value) || 0)}
+                    min={0}
+                    max={110}
+                    className="w-20 px-2.5 py-1.5 text-sm bg-slate-900 border border-slate-600 rounded-md text-white focus:border-blue-400 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-600 mt-3">HLI reference document covers ages 0–85. HLI PH weights exist only for 15–80 (blended summary uses that subset).</p>
+              </div>
+
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Optional Sheets</h3>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked disabled className="accent-blue-500 opacity-60" />
+                    <span>Summary comparison grid</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider ml-auto">always</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked disabled className="accent-blue-500 opacity-60" />
+                    <span>Per-scenario pricing tables</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider ml-auto">always</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={includeAssumptions}
+                      onChange={(e) => setIncludeAssumptions(e.target.checked)}
+                      className="accent-blue-500"
+                    />
+                    <span>Assumptions detail</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={includeMargin}
+                      onChange={(e) => setIncludeMargin(e.target.checked)}
+                      className="accent-blue-500"
+                    />
+                    <span>Margin profile (year-by-year CM)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right column: filename & download */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 sticky top-20">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Filename</h3>
+              <div className="flex items-start gap-2">
+                <input
+                  type="text"
+                  value={currentFilename}
+                  onChange={(e) => setFilenameOverride(e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-2 text-sm bg-slate-900 border border-slate-600 rounded-md text-white focus:border-blue-400 focus:outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setFilenameOverride(null)}
+                  disabled={filenameOverride === null}
+                  title="Reset to auto-generated"
+                  className="px-2 py-2 text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-2">
+                {filenameOverride === null ? "Auto-generated from customer + current year/month." : "Custom filename. Click ↻ to reset."}
+              </p>
+
+              <div className="mt-5 pt-5 border-t border-slate-700/50">
+                <div className="relative group">
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    disabled={!canDownload}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-lg transition-all ${
+                      canDownload
+                        ? "bg-blue-500 hover:bg-blue-400 text-white shadow-lg shadow-blue-500/20"
+                        : "bg-slate-700 text-slate-500 cursor-not-allowed"
+                    }`}
+                  >
+                    {busy ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                        </svg>
+                        <span>
+                          Generating… {progress.total > 0 && `${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                        </svg>
+                        <span>Download Excel</span>
+                      </>
+                    )}
+                  </button>
+                  {validation.length > 0 && !busy && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs bg-slate-950 border border-slate-700 text-slate-300 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-lg">
+                      {validation.join(" · ")}
+                    </div>
+                  )}
+                </div>
+
+                {busy && progress.total > 0 && (
+                  <div className="mt-3">
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-400 transition-all" style={{ width: `${progressPct}%` }} />
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1 text-right">{progressPct}%</div>
+                  </div>
+                )}
+
+                {successName && !busy && (
+                  <div className="mt-3 px-3 py-2 text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-md">
+                    Downloaded <span className="font-mono">{successName}</span>
+                  </div>
+                )}
+                {error && !busy && (
+                  <div className="mt-3 px-3 py-2 text-xs bg-red-500/10 border border-red-500/30 text-red-300 rounded-md">
+                    {error}
+                  </div>
+                )}
+              </div>
+
+              {/* Export preview summary */}
+              <div className="mt-5 pt-5 border-t border-slate-700/50 text-xs text-slate-400 space-y-1">
+                <div className="flex justify-between"><span>Tabs:</span>
+                  <span className="text-slate-200">{1 + selectedScenarios.length + (includeAssumptions ? 1 : 0) + (includeMargin ? 1 : 0)}</span>
+                </div>
+                <div className="flex justify-between"><span>Scenarios:</span>
+                  <span className="text-slate-200">{selectedScenarios.join(", ") || "—"}</span>
+                </div>
+                <div className="flex justify-between"><span>Durations:</span>
+                  <span className="text-slate-200">{selectedDurations.length ? selectedDurations.map(d => `${d}yr`).join(", ") : "—"}</span>
+                </div>
+                <div className="flex justify-between"><span>Target CMs:</span>
+                  <span className="text-slate-200">{selectedCms.length ? selectedCms.map(c => `${Math.round(c * 100)}%`).join(", ") : "—"}</span>
+                </div>
+                <div className="flex justify-between"><span>Age range:</span>
+                  <span className="text-slate-200">{ageMin}–{ageMax}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
-const SECTIONS = ["model", "assumptions", "data", "pricing", "margin", "howitworks"];
-const SECTION_LABELS = ["The Model", "Assumptions", "The Data", "Pricing", "Margin", "How It Works"];
+const SECTIONS = ["model", "pricingprinciples", "assumptions", "data", "pricing", "margin", "export", "howitworks"];
+const SECTION_LABELS = ["The Model", "Pricing Principles", "Assumptions", "The Data", "Pricing", "Margin", "Export", "How It Works"];
 
 export default function CancerPricingModel() {
-  const [scenario, setScenario] = useState("Base – April 2026");
+  const [scenario, setScenario] = useState("Base");
   const [modified, setModified] = useState(false);
   const [duration, setDuration] = useState(10);
   const [targetCM, setTargetCM] = useState(0.70);
@@ -360,7 +544,7 @@ export default function CancerPricingModel() {
   const [costCurveView, setCostCurveView] = useState("chart");
   const [marginProfileView, setMarginProfileView] = useState("chart");
   const [costPopup, setCostPopup] = useState(null); // { year, field, lines, x, y }
-  const [params, setParams] = useState({ ...SCENARIOS["Base – April 2026"] });
+  const [params, setParams] = useState({ ...SCENARIOS["Base"] });
   const sectionRefs = useRef([]);
 
   const updateParam = useCallback((key, val) => { setParams(p => ({ ...p, [key]: val })); setModified(true); }, []);
@@ -392,8 +576,9 @@ export default function CancerPricingModel() {
       const y = i + 1;
       // Build explanations for each cost component
       const healthyParts = [];
-      healthyParts.push(`Base: $${(params.hx * 12).toFixed(2)}/yr (${params.hx} $/mo × 12)`);
+      healthyParts.push(`Base: $${params.hx.toFixed(3)}/yr`);
       if (y > 1) healthyParts.push(`Inflation: ${(inf * 100).toFixed(1)}%/yr compounded ${y - 1}yr`);
+      else healthyParts.push("Inflation: not applied in Year 1");
       if (y > 1 && params.hxStepUp > 0) {
         const activeYrs = Array.from(hxStepYrs).filter(yr => yr <= y).sort((a,b) => a - b);
         if (activeYrs.length > 0) healthyParts.push(`Hx step-up: +${(params.hxStepUp * 100).toFixed(0)}% in yr${activeYrs.length > 1 ? "s" : ""} ${activeYrs.join(", ")}`);
@@ -404,25 +589,39 @@ export default function CancerPricingModel() {
       const txParts = [];
       txParts.push(`Base: $${params.tx.toFixed(2)}/case`);
       if (y > 1) txParts.push(`Inflation: ${(inf * 100).toFixed(1)}%/yr compounded ${y - 1}yr`);
+      else txParts.push("Inflation: not applied in Year 1");
       if (y > 1 && params.txStepDown > 0) {
         const activeYrs = Array.from(txStepYrs).filter(yr => yr <= y).sort((a,b) => a - b);
         if (activeYrs.length > 0) txParts.push(`Tx step-down: -${(params.txStepDown * 100).toFixed(0)}% in yr${activeYrs.length > 1 ? "s" : ""} ${activeYrs.join(", ")}`);
       }
+      txParts.push(`Halo component: $${c.haloCurve[i].toFixed(2)}/case`);
+      txParts.push(`Infra: $${c.txInfra[i].toFixed(2)}/case`);
+      txParts.push(`Total (Tx + Halo + Infra): $${(c.txCurve[i] + c.haloCurve[i] + c.txInfra[i]).toFixed(2)}/case`);
 
       const haloParts = [];
+      haloParts.push(`Component only (service): Halo cost shown separately for transparency`);
       haloParts.push(`Base: $${params.halo.toFixed(2)}/case`);
       if (y > 1) haloParts.push(`Inflation: ${(inf * 100).toFixed(1)}%/yr compounded ${y - 1}yr`);
+      else haloParts.push("Inflation: not applied in Year 1");
       if (y > 1 && params.haloEff > 0) {
         const activeYrs = Array.from(haloYrs).filter(yr => yr <= y).sort((a,b) => a - b);
         if (activeYrs.length > 0) haloParts.push(`Halo efficiency: -${(params.haloEff * 100).toFixed(0)}% in yr${activeYrs.length > 1 ? "s" : ""} ${activeYrs.join(", ")}`);
       }
+      haloParts.push(`Displayed value: $${c.haloCurve[i].toFixed(2)}/case`);
 
       const recParts = [];
-      recParts.push(`Recovery % = ${(params.recoveryPct * 100).toFixed(0)}%`);
-      recParts.push(`= ${(params.recoveryPct * 100).toFixed(0)}% × (Tx $${c.txCurve[i].toFixed(2)} + Halo $${c.haloCurve[i].toFixed(2)})`);
+      recParts.push(`Base recovery service = ${(params.recoveryPct * 100).toFixed(0)}% × (Tx $${c.txCurve[i].toFixed(2)} + Halo $${c.haloCurve[i].toFixed(2)})`);
+      if (y === 1) recParts.push("Inflation: not applied in Year 1");
+      recParts.push(`Recovery service: $${c.recoveryCurve[i].toFixed(2)}/case`);
+      recParts.push(`Infra: $${c.rxInfra[i].toFixed(2)}/case`);
+      recParts.push(`Total (Recovery + Infra): $${(c.recoveryCurve[i] + c.rxInfra[i]).toFixed(2)}/case`);
 
       return {
-        year: y, healthy: c.totalHxCurve[i], treatment: c.txCurve[i], halo: c.haloCurve[i], recovery: c.recoveryCurve[i],
+        year: y,
+        healthy: c.totalHxCurve[i],
+        treatment: c.txCurve[i] + c.haloCurve[i] + c.txInfra[i],
+        halo: c.haloCurve[i],
+        recovery: c.recoveryCurve[i] + c.rxInfra[i],
         hxInfra: c.hxInfra[i], txInfra: c.txInfra[i], rxInfra: c.rxInfra[i],
         explain: { healthy: healthyParts, treatment: txParts, halo: haloParts, recovery: recParts },
       };
@@ -638,11 +837,13 @@ export default function CancerPricingModel() {
           {/* Section Navigation */}
           <div className="mt-14 flex flex-col gap-3">
             {[
-              { idx: 1, num: "01", title: "Cost Scenario / Assumptions", desc: "Inputs" },
-              { idx: 2, num: "02", title: "Insurer Provided Data (cancer incidence, mortality, lapse rates)", desc: "Inputs" },
-              { idx: 3, num: "03", title: "PMPM Table by Age and Gender", desc: "Outputs" },
-              { idx: 4, num: "04", title: "Annual CM Over Cohort Life", desc: "Outputs" },
-              { idx: 5, num: "05", title: "How It Works", desc: "Calculation engine walkthrough" },
+              { idx: 1, num: "01", title: "Pricing Principles", desc: "Guiding framework" },
+              { idx: 2, num: "02", title: "Cost Scenario / Assumptions", desc: "Inputs" },
+              { idx: 3, num: "03", title: "Insurer Provided Data (cancer incidence, mortality, lapse rates)", desc: "Inputs" },
+              { idx: 4, num: "04", title: "PMPM Table by Age and Gender", desc: "Outputs" },
+              { idx: 5, num: "05", title: "Annual CM Over Cohort Life", desc: "Outputs" },
+              { idx: 6, num: "06", title: "Export Pricing Deck", desc: "Deliverable" },
+              { idx: 7, num: "07", title: "How It Works", desc: "Calculation engine walkthrough" },
             ].map(s => (
               <button key={s.idx} onClick={() => scrollTo(s.idx)}
                 className="flex-1 min-w-0 text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/40 rounded-lg px-5 py-3 transition-all group">
@@ -656,10 +857,41 @@ export default function CancerPricingModel() {
         </div>
       </section>
 
-      {/* ─── SECTION 2: ASSUMPTIONS ─── */}
-      <section ref={el => sectionRefs.current[1] = el} id="assumptions" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
+      {/* ─── SECTION 2: PRICING PRINCIPLES ─── */}
+      <section ref={el => sectionRefs.current[1] = el} id="pricingprinciples" className="bg-slate-900 text-white px-6 py-16 md:px-12 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <SectionTitle label="01 — Assumptions" title="Adjust the assumptions"
+          <SectionTitle
+            label="01 — Pricing Principles"
+            title="Pricing principles"
+            subtitle="Core principles that guide how we evaluate and structure all upcoming deals."
+          />
+          <div className="space-y-6">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+              <h3 className="text-sm font-semibold text-white mb-2">1. We do not want to get a worse deal than the 1st Hanwha deal</h3>
+              <p className="text-sm text-slate-300">
+                For any upcoming deal, we should target policyholder volumes and contribution margin equal to or above our 1st Hanwha deal.
+              </p>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+              <h3 className="text-sm font-semibold text-white mb-2">2. Need&apos;s pricing framework requires a positive contribution margin at the cohort level. We do not cross-subsidize cohorts (ie ponzi scheme).</h3>
+              <p className="text-sm text-slate-300">
+                Our revenue from a cohort should be able to cover the cost of policyholders within the cohort throughout the service period.
+              </p>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+              <h3 className="text-sm font-semibold text-white mb-2">3. We can introduce a mechanism to renegotiate prices for years beyond the service period we are comfortable committing to today</h3>
+              <p className="text-sm text-slate-300">
+                Given the unpredictability of future healthcare/ AI scene, we should explore a mechanism to renegotiate our prices with insurance partner based on refreshed market conditions in at the end of the service period in an effort to match service and benefit periods.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── SECTION 3: ASSUMPTIONS ─── */}
+      <section ref={el => sectionRefs.current[2] = el} id="assumptions" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
+        <div className="max-w-7xl mx-auto">
+          <SectionTitle label="02 — Assumptions" title="Adjust the assumptions"
             subtitle="Every field is editable. Change a number and watch the cost curves, pricing table, and margin chart update in real time." />
 
           {/* Scenario Picker */}
@@ -687,7 +919,7 @@ export default function CancerPricingModel() {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-4">Starting Costs</h3>
               <div className="grid grid-cols-2 gap-4">
-                <NumInput label="Healthy Mode" value={params.hx} onChange={v => updateParam("hx", v)} step={0.01} unit="$/mo/PH" />
+                <NumInput label="Healthy Mode" value={params.hx} onChange={v => updateParam("hx", v)} step={0.01} unit="$/yr/PH" />
                 <NumInput label="Treatment" value={params.tx} onChange={v => updateParam("tx", v)} step={1} unit="$/case" />
                 <NumInput label="Halo" value={params.halo} onChange={v => updateParam("halo", v)} step={1} unit="$/case" />
                 <NumInput label="Recovery %" value={params.recoveryPct * 100} onChange={v => updateParam("recoveryPct", v / 100)} step={5} unit="%" />
@@ -747,6 +979,7 @@ export default function CancerPricingModel() {
               <div>
                 <h3 className="text-sm font-semibold text-white">Projected Cost Curves</h3>
                 {costCurveView === "table" && <p className="text-[11px] text-slate-500 mt-0.5">Click any value for a breakdown of how it was calculated.</p>}
+                <p className="text-[11px] text-slate-500 mt-0.5">Year 1 uses base costs; inflation compounds from Year 2 onward.</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-500">{duration}-year projection with current assumptions</span>
@@ -769,10 +1002,10 @@ export default function CancerPricingModel() {
                   <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
                     formatter={(v, name) => ["$" + Number(v).toFixed(2), name]} labelFormatter={v => `Year ${v}`} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line type="monotone" dataKey="healthy" name="Healthy ($/yr/PH)" stroke={chartColors.healthy} strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="treatment" name="Treatment ($/case)" stroke={chartColors.treatment} strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="halo" name="Halo ($/case)" stroke={chartColors.halo} strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="recovery" name="Recovery ($/case)" stroke={chartColors.recovery} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="healthy" name="Healthy Total ($/yr/PH, incl. infra)" stroke={chartColors.healthy} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="treatment" name="Treatment Total ($/case, Tx+Halo+infra)" stroke={chartColors.treatment} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="halo" name="Halo Service Component ($/case)" stroke={chartColors.halo} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="recovery" name="Recovery Total ($/case, incl. infra)" stroke={chartColors.recovery} strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -792,10 +1025,10 @@ export default function CancerPricingModel() {
                   <thead className="sticky top-0 bg-slate-900">
                     <tr className="border-b border-slate-700">
                       <th className="px-3 py-2 text-left text-slate-400 font-medium">Year</th>
-                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Healthy ($/yr/PH)</th>
-                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Treatment ($/case)</th>
-                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Halo ($/case)</th>
-                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Recovery ($/case)</th>
+                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Healthy Total ($/yr/PH)</th>
+                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Treatment Total ($/case)</th>
+                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Halo Service Component ($/case)</th>
+                      <th className="px-3 py-2 text-right text-slate-400 font-medium">Recovery Total ($/case)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -830,10 +1063,10 @@ export default function CancerPricingModel() {
         </div>
       </section>
 
-      {/* ─── SECTION 3: THE DATA ─── */}
+      {/* ─── SECTION 4: THE DATA ─── */}
       <Section id="data" dark>
-        <div ref={el => sectionRefs.current[2] = el} />
-        <SectionTitle label="02 — The Data" title="What drives the model"
+        <div ref={el => sectionRefs.current[3] = el} />
+        <SectionTitle label="03 — The Data" title="What drives the model"
           subtitle="Three datasets from Hanwha Life Insurance underpin every calculation: how often cancer occurs, how fast policyholders leave, and background mortality. All rates are shown as percentages." />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -915,11 +1148,11 @@ export default function CancerPricingModel() {
         </div>
       </Section>
 
-      {/* ─── SECTION 4: PRICING TABLE ─── */}
+      {/* ─── SECTION 5: PRICING TABLE ─── */}
       <section id="pricing" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
         <div className="max-w-7xl mx-auto">
-        <div ref={el => sectionRefs.current[3] = el} />
-        <SectionTitle label="03 — The Price" title="PMPM by age and gender"
+        <div ref={el => sectionRefs.current[4] = el} />
+        <SectionTitle label="04 — The Price" title="PMPM by age and gender"
           subtitle="The monthly premium per member that achieves the target contribution margin over the full Need service period, weighted by HLI's policyholder distribution." />
 
         {/* Blended PMPM hero stat */}
@@ -977,10 +1210,10 @@ export default function CancerPricingModel() {
         </div>
       </section>
 
-      {/* ─── SECTION 5: COHORT MARGIN ─── */}
-      <section ref={el => sectionRefs.current[4] = el} id="margin" className="bg-slate-900 text-white px-6 py-16 md:px-12 lg:px-20">
+      {/* ─── SECTION 6: COHORT MARGIN ─── */}
+      <section ref={el => sectionRefs.current[5] = el} id="margin" className="bg-slate-900 text-white px-6 py-16 md:px-12 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <SectionTitle label="04 — The Margin" title="Annual contribution margin over the life of a cohort"
+          <SectionTitle label="05 — The Margin" title="Annual contribution margin over the life of a cohort"
             subtitle="Weighted across all ages (15–80) and genders using HLI's actual policyholder distribution. Each age is priced at its own solved PMPM, then aggregated. As the cohort ages, rising cancer incidence erodes the margin year over year." />
 
           {/* Zero crossing callout */}
@@ -1053,10 +1286,13 @@ export default function CancerPricingModel() {
         </div>
       </section>
 
-      {/* ─── SECTION 6: HOW IT WORKS ─── */}
-      <section ref={el => sectionRefs.current[5] = el} id="howitworks" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
+      {/* ─── SECTION 7: EXPORT ─── */}
+      <ExportSection refCallback={el => sectionRefs.current[6] = el} />
+
+      {/* ─── SECTION 8: HOW IT WORKS ─── */}
+      <section ref={el => sectionRefs.current[7] = el} id="howitworks" className="bg-slate-950 text-white px-6 py-16 md:px-12 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <SectionTitle label="05 — How It Works" title="Calculation engine walkthrough"
+          <SectionTitle label="07 — How It Works" title="Calculation engine walkthrough"
             subtitle="A step-by-step walkthrough from input assumptions to how the model calculates to the final outputs." />
 
           {/* Blended result banner */}
